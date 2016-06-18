@@ -175,6 +175,8 @@ struct gl_renderer {
 	EGLContext egl_context;
 	EGLConfig egl_config;
 
+	EGLSurface dummy_surface;
+
 	struct wl_array vertices;
 	struct wl_array vtxcnt;
 
@@ -200,6 +202,8 @@ struct gl_renderer {
 	int has_egl_buffer_age;
 
 	int has_configless_context;
+
+	int has_surfaceless_context;
 
 	int has_dmabuf_import;
 	struct wl_list dmabuf_images;
@@ -2654,6 +2658,8 @@ gl_renderer_destroy(struct weston_compositor *ec)
 	wl_list_for_each_safe(image, next, &gr->dmabuf_images, link)
 		dmabuf_image_destroy(image);
 
+	eglDestroySurface(gr->egl_display, gr->dummy_surface);
+
 	eglTerminate(gr->egl_display);
 	eglReleaseThread();
 
@@ -2764,6 +2770,9 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	if (check_extension(extensions, "EGL_MESA_configless_context"))
 		gr->has_configless_context = 1;
 #endif
+
+	if (check_extension(extensions, "EGL_KHR_surfaceless_context"))
+		gr->has_surfaceless_context = 1;
 
 #ifdef EGL_EXT_image_dma_buf_import
 	if (check_extension(extensions, "EGL_EXT_image_dma_buf_import"))
@@ -2881,6 +2890,12 @@ gl_renderer_create(struct weston_compositor *ec, EGLenum platform,
 	EGLint major, minor;
 	int supports = 0;
 
+	const EGLint pbuffer_attribs[] = {
+		EGL_WIDTH, 10,
+		EGL_HEIGHT, 10,
+		EGL_NONE
+	};
+
 	if (platform) {
 		supports = gl_renderer_supports(
 			ec, platform_to_extension(platform));
@@ -2955,6 +2970,23 @@ gl_renderer_create(struct weston_compositor *ec, EGLenum platform,
 	wl_list_init(&gr->dmabuf_images);
 	if (gr->has_dmabuf_import)
 		gr->base.import_dmabuf = gl_renderer_import_dmabuf;
+
+	if (gr->has_surfaceless_context) {
+		weston_log("EGL_KHR_surfaceless_context available\n");
+		gr->dummy_surface = EGL_NO_SURFACE;
+	} else {
+		weston_log("EGL_KHR_surfaceless_context unavailable "
+			   "trying PbufferSurface\n");
+		gr->dummy_surface = eglCreatePbufferSurface(gr->egl_display,
+							    gr->egl_config,
+							    pbuffer_attribs);
+		if (gr->dummy_surface == EGL_NO_SURFACE) {
+			weston_log("failed to create dummy pbuffer\n");
+			goto fail_terminate;
+		}
+	}
+
+	gl_renderer_setup(ec, gr->dummy_surface);
 
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB565);
 
