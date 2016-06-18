@@ -191,6 +191,9 @@ weston_output_mode_switch_to_native(struct weston_output *output)
 	int ret;
 	int mode_changed = 0, scale_changed = 0;
 
+	if (!output)
+		return -1;
+
 	if (!output->switch_mode)
 		return -1;
 
