@@ -749,6 +749,7 @@ create_focus_surface(struct weston_compositor *ec,
 
 	surface->configure = focus_surface_configure;
 	surface->output = output;
+	surface->is_mapped = true;
 	surface->configure_private = fsurf;
 	weston_surface_set_label_func(surface, focus_surface_get_label);
 
@@ -759,6 +760,7 @@ create_focus_surface(struct weston_compositor *ec,
 		return NULL;
 	}
 	fsurf->view->output = output;
+	fsurf->view->is_mapped = true;
 
 	weston_surface_set_size(surface, output->width, output->height);
 	weston_view_set_position(fsurf->view, output->x, output->y);
@@ -3523,11 +3525,13 @@ shell_map_popup(struct shell_surface *shsurf)
 	struct weston_touch *touch = weston_seat_get_touch(shseat->seat);
 
 	shsurf->surface->output = parent_view->output;
+	shsurf->surface->is_mapped = true;
 	shsurf->view->output = parent_view->output;
 
 	weston_view_set_transform_parent(shsurf->view, parent_view);
 	weston_view_set_position(shsurf->view, shsurf->popup.x, shsurf->popup.y);
 	weston_view_update_transform(shsurf->view);
+	shsurf->view->is_mapped = true;
 
 	if (pointer &&
 	    pointer->grab_serial == shsurf->popup.serial) {
@@ -4361,6 +4365,8 @@ configure_static_view(struct weston_view *ev, struct weston_layer *layer)
 	}
 
 	weston_view_set_position(ev, ev->output->x, ev->output->y);
+	ev->is_mapped = true;
+	ev->surface->is_mapped = true;
 
 	if (wl_list_empty(&ev->layer_link.link)) {
 		weston_layer_entry_insert(&layer->view_list, &ev->layer_link);
@@ -4542,6 +4548,8 @@ lock_surface_configure(struct weston_surface *surface, int32_t sx, int32_t sy)
 		weston_layer_entry_insert(&shell->lock_layer.view_list,
 					  &view->layer_link);
 		weston_view_update_transform(view);
+		surface->is_mapped = true;
+		view->is_mapped = true;
 		shell_fade(shell, FADE_IN);
 	}
 }
@@ -5686,6 +5694,7 @@ map(struct desktop_shell *shell, struct shell_surface *shsurf,
 
 	if (shsurf->type != SHELL_SURFACE_NONE) {
 		weston_view_update_transform(shsurf->view);
+		shsurf->view->is_mapped = true;
 		if (shsurf->state.maximized) {
 			shsurf->surface->output = shsurf->output;
 			shsurf->view->output = shsurf->output;
@@ -5797,6 +5806,7 @@ shell_surface_configure(struct weston_surface *es, int32_t sx, int32_t sy)
 
 	if (!weston_surface_is_mapped(es)) {
 		map(shell, shsurf, sx, sy);
+		es->is_mapped = true;
 	} else if (type_changed || sx != 0 || sy != 0 ||
 		   shsurf->last_width != es->width ||
 		   shsurf->last_height != es->height) {
