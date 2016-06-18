@@ -266,6 +266,8 @@ fs_output_create(struct fullscreen_shell *shell, struct weston_output *output)
 	fsout->black_view = create_black_surface(shell->compositor, fsout,
 						 output->x, output->y,
 						 output->width, output->height);
+	fsout->black_view->is_mapped = true;
+	fsout->black_view->surface->is_mapped = true;
 	weston_layer_entry_insert(&shell->layer.view_list,
 		       &fsout->black_view->layer_link);
 	wl_list_init(&fsout->transform.link);
