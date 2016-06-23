@@ -1546,19 +1546,13 @@ weston_view_set_mask_infinite(struct weston_view *view)
 WL_EXPORT bool
 weston_view_is_mapped(struct weston_view *view)
 {
-	if (view->output)
-		return true;
-	else
-		return false;
+	return view->is_mapped;
 }
 
 WL_EXPORT bool
 weston_surface_is_mapped(struct weston_surface *surface)
 {
-	if (surface->output)
-		return true;
-	else
-		return false;
+	return surface->is_mapped;
 }
 
 static void
