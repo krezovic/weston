@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016 Benoit Gschwind
+ * Copyright © 2012 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -23,42 +23,36 @@
  * SOFTWARE.
  */
 
-#ifndef WESTON_COMPOSITOR_X11_H
-#define WESTON_COMPOSITOR_X11_H
+#include "config.h"
 
-#ifdef  __cplusplus
-extern "C" {
-#endif
+#include <unistd.h>
 
 #include "compositor.h"
+#include "compositor-x11.h"
+#include "compositor-x11-private.h"
+#include "wayland-server.h"
 
-#define WESTON_X11_BACKEND_CONFIG_VERSION 1
+static int
+timer_handler(void *data)
+{
+        struct weston_compositor *ec = data;
+	struct x11_backend *b = (struct x11_backend *)ec->backend;
 
-struct weston_x11_backend_output_config {
-	int width;
-	int height;
-	char *name;
-	uint32_t transform;
-	int32_t scale;
-};
+	b->init_x11_outputs(b);
 
-struct weston_x11_backend_config {
-	struct weston_backend_config base;
-
-	bool fullscreen;
-	bool no_input;
-
-	/** Whether to use the pixman renderer instead of the OpenGL ES renderer. */
-	bool use_pixman;
-
-	uint32_t num_outputs;
-	struct weston_x11_backend_output_config *outputs;
-
-	bool no_outputs;
-};
-
-#ifdef  __cplusplus
+	return 1;
 }
-#endif
 
-#endif /* WESTON_COMPOSITOR_X11_H_ */
+WL_EXPORT int
+module_init(struct weston_compositor *ec,
+	    int *argc, char *argv[])
+{
+	struct wl_event_loop *loop;
+	struct wl_event_source *source;
+
+	loop = wl_display_get_event_loop(ec->wl_display);
+	source = wl_event_loop_add_timer(loop, timer_handler, ec);
+	wl_event_source_timer_update(source, 30000);
+
+	return 0;
+}
