@@ -370,6 +370,17 @@ headless_backend_la_SOURCES = 			\
 	libweston/compositor-headless.h		\
 	libweston/compositor-headless-private.h	\
 	shared/helpers.h
+
+noinst_LTLIBRARIES += headless-testing-backend.la
+headless_testing_backend_la_LDFLAGS = -module -avoid-version
+headless_testing_backend_la_LIBADD = $(COMPOSITOR_LIBS) libshared.la
+headless_testing_backend_la_CPPFLAGS = -DTESTING_MODULE $(AM_CPPFLAGS)
+headless_testing_backend_la_CFLAGS = $(COMPOSITOR_CFLAGS) $(AM_CFLAGS)
+headless_testing_backend_la_SOURCES = 		\
+	libweston/compositor-headless.c		\
+	libweston/compositor-headless.h		\
+	libweston/compositor-headless-private.h	\
+	shared/helpers.h
 endif
 
 if ENABLE_FBDEV_COMPOSITOR

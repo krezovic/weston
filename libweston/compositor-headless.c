@@ -195,6 +195,10 @@ headless_backend_create(struct weston_compositor *compositor,
 		return NULL;
 
 	b->compositor = compositor;
+#ifdef TESTING_MODULE
+	b->config = *config; /* copying it because it's freed in main.c */
+	b->create_virtual_output = headless_backend_create_output;
+#endif
 	if (weston_compositor_set_presentation_clock_software(compositor) < 0)
 		goto err_free;
 
