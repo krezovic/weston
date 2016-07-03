@@ -1143,7 +1143,8 @@ noinst_LTLIBRARIES +=			\
 	weston-test.la			\
 	$(module_tests)			\
 	libtest-runner.la		\
-	libtest-client.la
+	libtest-client.la		\
+	output-unplug.la
 
 noinst_PROGRAMS +=			\
 	$(setbacklight)			\
@@ -1155,6 +1156,10 @@ noinst_PROGRAMS +=			\
 
 test_module_ldflags = \
 	-module -avoid-version -rpath $(libdir) $(COMPOSITOR_LIBS)
+
+output_unplug_la_SOURCES = tests/output-unplug.c
+output_unplug_la_LDFLAGS = $(test_module_ldflags)
+output_unplug_la_CFLAGS = $(AM_CFLAGS) $(COMPOSITOR_CFLAGS)
 
 surface_global_test_la_SOURCES = tests/surface-global-test.c
 surface_global_test_la_LDFLAGS = $(test_module_ldflags)
