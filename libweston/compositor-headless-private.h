@@ -39,6 +39,9 @@ extern "C" {
 struct headless_backend {
 	struct weston_backend base;
 	struct weston_compositor *compositor;
+	struct weston_headless_backend_config config;
+	int (*create_virtual_output) (struct headless_backend *b,
+				      struct weston_headless_backend_config *config);
 
 	struct weston_seat fake_seat;
 	bool use_pixman;
