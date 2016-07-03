@@ -1157,6 +1157,7 @@ noinst_LTLIBRARIES +=			\
 	$(module_tests)			\
 	libtest-runner.la		\
 	libtest-client.la		\
+	headless-hotplug.la		\
 	output-unplug.la
 
 noinst_PROGRAMS +=			\
@@ -1169,6 +1170,11 @@ noinst_PROGRAMS +=			\
 
 test_module_ldflags = \
 	-module -avoid-version -rpath $(libdir) $(COMPOSITOR_LIBS)
+
+headless_hotplug_la_SOURCES = tests/headless-hotplug.c
+headless_hotplug_la_LDFLAGS = $(test_module_ldflags)
+headless_hotplug_la_CPPFLAGS = $(AM_CPPFLAGS) -DTESTING_MODULE
+headless_hotplug_la_CFLAGS = $(AM_CFLAGS) $(COMPOSITOR_CFLAGS)
 
 output_unplug_la_SOURCES = tests/output-unplug.c
 output_unplug_la_LDFLAGS = $(test_module_ldflags)
