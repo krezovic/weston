@@ -33,17 +33,10 @@
 
 #include "compositor.h"
 #include "compositor-headless.h"
+#include "compositor-headless-private.h"
 #include "shared/helpers.h"
 #include "pixman-renderer.h"
 #include "presentation-time-server-protocol.h"
-
-struct headless_backend {
-	struct weston_backend base;
-	struct weston_compositor *compositor;
-
-	struct weston_seat fake_seat;
-	bool use_pixman;
-};
 
 struct headless_output {
 	struct weston_output base;
