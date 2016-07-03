@@ -77,6 +77,7 @@ libweston_la_SOURCES =					\
 	libweston/compositor-drm.h			\
 	libweston/compositor-fbdev.h			\
 	libweston/compositor-headless.h			\
+	libweston/compositor-headless-private.h		\
 	libweston/compositor-rdp.h			\
 	libweston/compositor-wayland.h			\
 	libweston/compositor-x11.h			\
@@ -372,6 +373,7 @@ headless_backend_la_CFLAGS = $(COMPOSITOR_CFLAGS) $(AM_CFLAGS)
 headless_backend_la_SOURCES = 			\
 	libweston/compositor-headless.c		\
 	libweston/compositor-headless.h		\
+	libweston/compositor-headless-private.h	\
 	shared/helpers.h
 endif
 
