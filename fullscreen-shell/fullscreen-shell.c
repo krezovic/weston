@@ -216,10 +216,21 @@ fs_output_clear_pending(struct fs_output *fsout);
 static void
 fs_output_destroy(struct fs_output *fsout)
 {
-	fs_output_set_surface(fsout, NULL, 0, 0, 0);
-	fs_output_clear_pending(fsout);
+	struct fs_surface_list *surf;
 
 	wl_list_remove(&fsout->link);
+
+	if (wl_list_empty(&fsout->shell->output_list) && fsout->surface) {
+		surf = zalloc(sizeof *surf);
+		surf->surface = fsout->surface;
+		surf->method = fsout->method;
+		wl_list_init(&surf->link);
+		wl_list_insert(fsout->shell->unmapped_surfaces.prev, &surf->link);
+		fsout->surface = NULL;
+	}
+
+	fs_output_set_surface(fsout, NULL, 0, 0, 0);
+	fs_output_clear_pending(fsout);
 
 	if (fsout->output)
 		wl_list_remove(&fsout->output_destroyed.link);
