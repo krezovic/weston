@@ -262,10 +262,20 @@ fs_output_clear_pending(struct fs_output *fsout);
 static void
 fs_output_destroy(struct fs_output *fsout)
 {
-	fs_output_set_surface(fsout, NULL, 0, 0, 0);
 	fs_output_clear_pending(fsout);
 
 	wl_list_remove(&fsout->link);
+
+	if (fsout->view) {
+		weston_view_destroy(fsout->view);
+		fsout->view = NULL;
+	}
+
+	if (fsout->surface && wl_list_empty(&fsout->shell->output_list)) {
+		add_unmapped_surface(fsout->shell, fsout->surface,
+				     fsout->method);
+		fsout->surface = NULL;
+	}
 
 	if (fsout->output)
 		wl_list_remove(&fsout->output_destroyed.link);
