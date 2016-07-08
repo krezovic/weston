@@ -299,10 +299,15 @@ pending_surface_destroyed(struct wl_listener *listener, void *data)
 	fsout->pending.surface = NULL;
 }
 
+static void
+configure_presented_surface(struct weston_surface *surface, int32_t sx,
+			    int32_t sy);
+
 static struct fs_output *
 fs_output_create(struct fullscreen_shell *shell, struct weston_output *output)
 {
 	struct fs_output *fsout;
+	struct fs_client_surface *surf, *next;
 
 	fsout = zalloc(sizeof *fsout);
 	if (!fsout)
@@ -325,6 +330,13 @@ fs_output_create(struct fullscreen_shell *shell, struct weston_output *output)
 	weston_layer_entry_insert(&shell->layer.view_list,
 		       &fsout->black_view->layer_link);
 	wl_list_init(&fsout->transform.link);
+
+	wl_list_for_each_safe(surf, next, &shell->unmapped_surfaces, link) {
+		fs_output_set_surface(fsout, surf->surface, surf->method, 0, 0);
+		configure_presented_surface(surf->surface, 0, 0);
+		remove_unmapped_surface(surf);
+	}
+
 	return fsout;
 }
 
@@ -750,6 +762,8 @@ fullscreen_shell_present_surface(struct wl_client *client,
 		output = wl_resource_get_user_data(output_res);
 		fsout = fs_output_for_output(output);
 		fs_output_set_surface(fsout, surface, method, 0, 0);
+	} else if (wl_list_empty(&shell->output_list)) {
+		add_unmapped_surface(shell, surface, method);
 	} else {
 		wl_list_for_each(fsout, &shell->output_list, link)
 			fs_output_set_surface(fsout, surface, method, 0, 0);
