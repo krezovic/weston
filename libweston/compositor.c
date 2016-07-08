@@ -1212,9 +1212,13 @@ get_view_layer(struct weston_view *view)
 WL_EXPORT void
 weston_view_update_transform(struct weston_view *view)
 {
+	struct weston_compositor *ec = view->surface->compositor;;
 	struct weston_view *parent = view->geometry.parent;
 	struct weston_layer *layer;
 	pixman_region32_t mask;
+
+	if (wl_list_empty(&ec->output_list))
+		return;
 
 	if (!view->transform.dirty)
 		return;
@@ -4085,17 +4089,22 @@ weston_output_destroy(struct weston_output *output)
 
 	output->destroying = 1;
 
-	wl_list_for_each(view, &output->compositor->view_list, link) {
-		if (view->output_mask & (1u << output->id))
-			weston_view_assign_output(view);
-	}
-
 	wl_event_source_remove(output->repaint_timer);
 
 	weston_presentation_feedback_discard_list(&output->feedback_list);
 
 	weston_compositor_reflow_outputs(output->compositor, output, output->width);
 	wl_list_remove(&output->link);
+
+	wl_list_for_each(view, &output->compositor->view_list, link) {
+		if (wl_list_empty(&output->compositor->output_list)) {
+			weston_view_geometry_dirty(view);
+			view->output = NULL;
+		}
+		else if (view->output_mask & (1u << output->id)) {
+			weston_view_assign_output(view);
+		}
+	}
 
 	wl_signal_emit(&output->compositor->output_destroyed_signal, output);
 	wl_signal_emit(&output->destroy_signal, output);
