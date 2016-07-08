@@ -47,6 +47,16 @@ struct fullscreen_shell {
 	struct wl_listener output_created_listener;
 
 	struct wl_listener seat_created_listener;
+
+	/* List of surfaces that need to be mapped after an output
+	 * gets created.
+	 *
+	 * At the moment, only one surface can be created on an output.
+	 *
+	 * This is implemented as a list in case someone fixes the shell
+	 * implementation to support more than one client.
+	 */
+	struct wl_list unmapped_surfaces; /* struct fs_client_surface::link */
 };
 
 struct fs_output {
@@ -83,6 +93,50 @@ struct pointer_focus_listener {
 	struct wl_listener seat_caps;
 	struct wl_listener seat_destroyed;
 };
+
+struct fs_client_surface {
+	struct weston_surface *surface;
+	enum zwp_fullscreen_shell_v1_present_method method;
+	struct wl_list link; /* struct fullscreen_shell::unmapped_surfaces */
+	struct wl_listener surface_destroyed;
+};
+
+static void
+remove_unmapped_surface(struct fs_client_surface *surf)
+{
+	wl_list_remove(&surf->surface_destroyed.link);
+	wl_list_remove(&surf->link);
+	free(surf);
+}
+
+static void
+unmapped_surface_destroy_listener(struct wl_listener *listener, void *data)
+{
+	struct fs_client_surface *surf;
+
+	surf = container_of(listener, struct fs_client_surface, surface_destroyed);
+
+	remove_unmapped_surface(surf);
+}
+
+static void
+add_unmapped_surface(struct fullscreen_shell *shell, struct weston_surface *surface,
+		     enum zwp_fullscreen_shell_v1_present_method method)
+{
+	struct fs_client_surface *surf;
+
+	surf = zalloc(sizeof *surf);
+	if (!surf)
+		return;
+
+	surf->surface = surface;
+	surf->method = method;
+
+	wl_list_insert(shell->unmapped_surfaces.prev, &surf->link);
+
+	surf->surface_destroyed.notify = unmapped_surface_destroy_listener;
+	wl_signal_add(&surface->destroy_signal, &surf->surface_destroyed);
+}
 
 static void
 pointer_focus_changed(struct wl_listener *listener, void *data)
@@ -832,6 +886,7 @@ module_init(struct weston_compositor *compositor,
 		return -1;
 
 	shell->compositor = compositor;
+	wl_list_init(&shell->unmapped_surfaces);
 
 	shell->client_destroyed.notify = client_destroyed;
 
