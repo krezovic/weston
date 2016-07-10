@@ -87,6 +87,25 @@
 		provided buffer.
 	  </description>
     </event>
+    <request name="disconnect_outputs">
+      <description summary="disconnects all compositor outputs">
+        Disconnects all outputs from the compositor to simulate
+        all outputs being unplugged at runtime.
+      </description>
+    </request>
+    <request name="hotplug_outputs">
+      <description summary="hotplug a headless output">
+        Creates a headless output with help of private functionality
+        from the headless-backend.so to simulate output hotplug.
+      </description>
+    </request>
+    <event name="ready">
+      <description summary="client has been bound to the test interface">
+        Indicates that client has been bound to the test interface.
+        It is used in bind_test or when emulating output unplug/hotplug
+        to indicate that output has been plugged in/unplugged.
+      </description>
+    </event>
   </interface>
 
   <interface name="weston_test_runner" version="1">
