@@ -158,4 +158,6 @@ TEST(internal_screenshot)
 
 	printf("Test complete\n");
 	assert(match);
+
+	wait_for_ready_event(client);
 }

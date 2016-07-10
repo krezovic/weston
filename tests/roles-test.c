@@ -111,6 +111,8 @@ TEST(test_role_conflict_sub_wlshell)
 
 	expect_protocol_error(client, &wl_shell_interface,
 			      WL_SHELL_ERROR_ROLE);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_role_conflict_wlshell_sub)
@@ -139,4 +141,6 @@ TEST(test_role_conflict_wlshell_sub)
 
 	expect_protocol_error(client, &wl_subcompositor_interface,
 			      WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE);
+
+	wait_for_ready_event(client);
 }

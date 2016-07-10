@@ -94,6 +94,8 @@ TEST(seat_capabilities_test)
 	assert(cl->input->pointer);
 	assert(cl->input->keyboard);
 	assert(cl->input->touch);
+
+	wait_for_ready_event(cl);
 }
 
 #define COUNT 15
@@ -132,6 +134,8 @@ TEST(multiple_device_add_and_remove)
 	assert(cl->input->pointer);
 	assert(cl->input->keyboard);
 	assert(cl->input->touch);
+
+	wait_for_ready_event(cl);
 }
 
 TEST(device_release_before_destroy)
@@ -169,6 +173,8 @@ TEST(device_release_before_destroy)
 	client_roundtrip(cl);
 
 	assert(cl->input->caps == WL_SEAT_CAPABILITY_ALL);
+
+	wait_for_ready_event(cl);
 }
 
 TEST(device_release_before_destroy_multiple)
@@ -185,7 +191,7 @@ TEST(device_release_before_destroy_multiple)
 		 * effect on the result of the test (after the client
 		 * finishes its body, it just 'is' and does nothing). */
 		device_release_before_destroy();
-	}
+	};
 }
 
 /* normal work-flow test */
@@ -225,6 +231,8 @@ TEST(device_release_after_destroy)
 	client_roundtrip(cl);
 
 	assert(cl->input->caps == WL_SEAT_CAPABILITY_ALL);
+
+	wait_for_ready_event(cl);
 }
 
 TEST(device_release_after_destroy_multiple)
@@ -298,6 +306,8 @@ TEST(get_device_after_destroy)
 	client_roundtrip(cl);
 
 	assert(cl->input->caps == WL_SEAT_CAPABILITY_ALL);
+
+	wait_for_ready_event(cl);
 }
 
 TEST(get_device_after_destroy_multiple)

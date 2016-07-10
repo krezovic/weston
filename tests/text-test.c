@@ -218,4 +218,6 @@ TEST(text_test)
 	weston_test_activate_surface(client->test->weston_test, NULL);
 	client_roundtrip(client);
 	assert(state.activated == 2 && state.deactivated == 2);
+
+	wait_for_ready_event(client);
 }

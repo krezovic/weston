@@ -90,6 +90,8 @@ TEST(test_pointer_top_left)
 	x -= 1; y -= 1;
 	assert(!surface_contains(client->surface, x, y));
 	check_pointer_move(client, x, y);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_pointer_bottom_left)
@@ -115,6 +117,8 @@ TEST(test_pointer_bottom_left)
 	x -= 1; y += 1;
 	assert(!surface_contains(client->surface, x, y));
 	check_pointer_move(client, x, y);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_pointer_top_right)
@@ -140,6 +144,8 @@ TEST(test_pointer_top_right)
 	x += 1; y -= 1;
 	assert(!surface_contains(client->surface, x, y));
 	check_pointer_move(client, x, y);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_pointer_bottom_right)
@@ -165,6 +171,8 @@ TEST(test_pointer_bottom_right)
 	x += 1; y += 1;
 	assert(!surface_contains(client->surface, x, y));
 	check_pointer_move(client, x, y);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_pointer_top_center)
@@ -190,6 +198,8 @@ TEST(test_pointer_top_center)
 	y -= 1;
 	assert(!surface_contains(client->surface, x, y));
 	check_pointer_move(client, x, y);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_pointer_bottom_center)
@@ -215,6 +225,8 @@ TEST(test_pointer_bottom_center)
 	y += 1;
 	assert(!surface_contains(client->surface, x, y));
 	check_pointer_move(client, x, y);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_pointer_left_center)
@@ -240,6 +252,8 @@ TEST(test_pointer_left_center)
 	x -= 1;
 	assert(!surface_contains(client->surface, x, y));
 	check_pointer_move(client, x, y);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_pointer_right_center)
@@ -265,6 +279,8 @@ TEST(test_pointer_right_center)
 	x += 1;
 	assert(!surface_contains(client->surface, x, y));
 	check_pointer_move(client, x, y);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_pointer_surface_move)
@@ -282,6 +298,8 @@ TEST(test_pointer_surface_move)
 	move_client(client, 0, 0);
 	assert(surface_contains(client->surface, 50, 50));
 	check_pointer(client, 50, 50);
+
+	wait_for_ready_event(client);
 }
 
 static int
@@ -352,6 +370,8 @@ TEST(test_surface_output)
 	/* visible */
 	check_client_move(client, x, --y);
 	assert(output_contains_client(client));
+
+	wait_for_ready_event(client);
 }
 
 static void
@@ -420,4 +440,6 @@ TEST(buffer_release)
 	assert(buf1_released == 0);
 	assert(buf2_released == 1);
 	assert(buf3_released == 1);
+
+	wait_for_ready_event(client);
 }

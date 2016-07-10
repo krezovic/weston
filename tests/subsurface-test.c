@@ -99,6 +99,8 @@ TEST(test_subsurface_basic_protocol)
 	populate_compound_surface(&com2, client);
 
 	client_roundtrip(client);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_subsurface_position_protocol)
@@ -116,6 +118,8 @@ TEST(test_subsurface_position_protocol)
 					   (i + 2) * 20, (i + 2) * 10);
 
 	client_roundtrip(client);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_subsurface_placement_protocol)
@@ -151,6 +155,8 @@ TEST(test_subsurface_paradox)
 	/* surface is its own parent */
 	wl_subcompositor_get_subsurface(subco, parent, parent);
 
+	wait_for_ready_event(client);
+
 	expect_protocol_error(client, &wl_subcompositor_interface,
 			      WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE);
 }
@@ -167,6 +173,8 @@ TEST(test_subsurface_identical_link)
 
 	/* surface is already a subsurface */
 	wl_subcompositor_get_subsurface(com.subco, com.child[0], com.parent);
+
+	wait_for_ready_event(client);
 
 	expect_protocol_error(client, &wl_subcompositor_interface,
 			      WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE);
@@ -186,6 +194,8 @@ TEST(test_subsurface_change_link)
 
 	/* surface is already a subsurface */
 	wl_subcompositor_get_subsurface(com.subco, com.child[0], stranger);
+
+	wait_for_ready_event(client);
 
 	expect_protocol_error(client, &wl_subcompositor_interface,
 			      WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE);
@@ -207,6 +217,8 @@ TEST(test_subsurface_nesting)
 	wl_subcompositor_get_subsurface(com.subco, stranger, com.child[0]);
 
 	client_roundtrip(client);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_subsurface_nesting_parent)
@@ -225,6 +237,8 @@ TEST(test_subsurface_nesting_parent)
 	wl_subcompositor_get_subsurface(com.subco, com.parent, stranger);
 
 	client_roundtrip(client);
+
+	wait_for_ready_event(client);
 }
 
 TEST(test_subsurface_loop_paradox)
@@ -246,6 +260,8 @@ TEST(test_subsurface_loop_paradox)
 	wl_subcompositor_get_subsurface(subco, surface[2], surface[1]);
 	wl_subcompositor_get_subsurface(subco, surface[0], surface[2]);
 
+	wait_for_ready_event(client);
+
 	expect_protocol_error(client, &wl_subcompositor_interface,
 			      WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE);
 }
@@ -264,6 +280,8 @@ TEST(test_subsurface_place_above_stranger)
 
 	/* bad sibling */
 	wl_subsurface_place_above(com.sub[0], stranger);
+
+	wait_for_ready_event(client);
 
 	expect_protocol_error(client, &wl_subsurface_interface,
 			      WL_SUBSURFACE_ERROR_BAD_SURFACE);
@@ -284,6 +302,8 @@ TEST(test_subsurface_place_below_stranger)
 	/* bad sibling */
 	wl_subsurface_place_below(com.sub[0], stranger);
 
+	wait_for_ready_event(client);
+
 	expect_protocol_error(client, &wl_subsurface_interface,
 			      WL_SUBSURFACE_ERROR_BAD_SURFACE);
 }
@@ -303,6 +323,8 @@ TEST(test_subsurface_place_above_foreign)
 	/* bad sibling */
 	wl_subsurface_place_above(com1.sub[0], com2.child[0]);
 
+	wait_for_ready_event(client);
+
 	expect_protocol_error(client, &wl_subsurface_interface,
 			      WL_SUBSURFACE_ERROR_BAD_SURFACE);
 }
@@ -321,6 +343,8 @@ TEST(test_subsurface_place_below_foreign)
 
 	/* bad sibling */
 	wl_subsurface_place_below(com1.sub[0], com2.child[0]);
+
+	wait_for_ready_event(client);
 
 	expect_protocol_error(client, &wl_subsurface_interface,
 			      WL_SUBSURFACE_ERROR_BAD_SURFACE);
@@ -357,6 +381,8 @@ TEST(test_subsurface_destroy_protocol)
 	wl_subsurface_destroy(com.sub[1]);
 
 	client_roundtrip(client);
+
+	wait_for_ready_event(client);
 }
 
 static void
@@ -558,4 +584,6 @@ TEST(test_subsurface_destroy_permutations)
 
 	client_roundtrip(client);
 	fprintf(stderr, "tried %d destroy permutations\n", counter);
+
+	wait_for_ready_event(client);
 }

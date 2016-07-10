@@ -147,6 +147,8 @@ TEST(test_buffer_count)
 		eglSwapBuffers(test_data.egl_dpy, test_data.egl_surface);
 	}
 
+	wait_for_ready_event(test_data.client);
+
 	buffer_count = get_n_egl_buffers(test_data.client);
 
 	printf("buffers used = %i\n", buffer_count);

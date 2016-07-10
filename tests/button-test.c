@@ -58,4 +58,6 @@ TEST(simple_button_test)
 	client_roundtrip(client);
 	assert(pointer->button == BTN_LEFT);
 	assert(pointer->state == WL_POINTER_BUTTON_STATE_RELEASED);
+
+	wait_for_ready_event(client);
 }

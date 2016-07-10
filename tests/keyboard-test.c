@@ -68,4 +68,6 @@ TEST(simple_keyboard_test)
 
 		client_roundtrip(client);
 	}
+
+	wait_for_ready_event(client);
 }

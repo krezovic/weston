@@ -240,4 +240,6 @@ TEST(test_presentation_feedback_simple)
 	printf("\n");
 
 	feedback_destroy(fb);
+
+	wait_for_ready_event(client);
 }

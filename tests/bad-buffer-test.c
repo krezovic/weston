@@ -79,6 +79,8 @@ TEST(test_truncated_shm_file)
 	wl_surface_commit(surface);
 	frame_callback_wait_nofail(client, &frame);
 
+	wait_for_ready_event(client);
+
 	expect_protocol_error(client, &wl_buffer_interface,
 			      WL_SHM_ERROR_INVALID_FD);
 }

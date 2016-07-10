@@ -99,6 +99,8 @@ TEST(test_viewporter_double_create)
 	wp_viewporter_get_viewport(viewporter, client->surface->wl_surface);
 	wp_viewporter_get_viewport(viewporter, client->surface->wl_surface);
 
+	wait_for_ready_event(client);
+
 	expect_protocol_error(client, &wp_viewporter_interface,
 			      WP_VIEWPORTER_ERROR_VIEWPORT_EXISTS);
 }
@@ -132,6 +134,8 @@ TEST_P(test_viewporter_bad_source_rect, bad_source_rect_args)
 		args->x, args->y, args->w, args->h);
 	set_source(vp, args->x, args->y, args->w, args->h);
 
+	wait_for_ready_event(client);
+
 	expect_protocol_error(client, &wp_viewport_interface,
 			      WP_VIEWPORT_ERROR_BAD_VALUE);
 }
@@ -148,6 +152,8 @@ TEST(test_viewporter_unset_source_rect)
 	wl_surface_commit(client->surface->wl_surface);
 
 	client_roundtrip(client);
+
+	wait_for_ready_event(client);
 }
 
 struct bad_destination_args {
@@ -177,6 +183,8 @@ TEST_P(test_viewporter_bad_destination_size, bad_destination_args)
 		args->w, args->h);
 	wp_viewport_set_destination(vp, args->w, args->h);
 
+	wait_for_ready_event(client);
+
 	expect_protocol_error(client, &wp_viewport_interface,
 			      WP_VIEWPORT_ERROR_BAD_VALUE);
 }
@@ -193,6 +201,8 @@ TEST(test_viewporter_unset_destination_size)
 	wl_surface_commit(client->surface->wl_surface);
 
 	client_roundtrip(client);
+
+	wait_for_ready_event(client);
 }
 
 struct nonint_destination_args {
@@ -224,6 +234,8 @@ TEST_P(test_viewporter_non_integer_destination_size, nonint_destination_args)
 	wp_viewport_set_source(vp, 5, 6, args->w, args->h);
 	wp_viewport_set_destination(vp, -1, -1);
 	wl_surface_commit(client->surface->wl_surface);
+
+	wait_for_ready_event(client);
 
 	expect_protocol_error(client, &wp_viewport_interface,
 			      WP_VIEWPORT_ERROR_BAD_SIZE);
@@ -404,6 +416,8 @@ TEST_P(test_viewporter_source_outside_buffer, bad_source_buffer_args)
 	client = create_client_and_test_surface(100, 50, WIN_W, WIN_H);
 	setup_source_vs_buffer(client, args);
 
+	wait_for_ready_event(client);
+
 	expect_protocol_error(client, &wp_viewport_interface,
 			      WP_VIEWPORT_ERROR_OUT_OF_BUFFER);
 }
@@ -460,6 +474,8 @@ TEST_P(test_viewporter_source_inside_buffer, good_source_buffer_args)
 	client = create_client_and_test_surface(100, 50, WIN_W, WIN_H);
 	setup_source_vs_buffer(client, args);
 	client_roundtrip(client);
+
+	wait_for_ready_event(client);
 }
 
 #undef WIN_W
@@ -498,6 +514,9 @@ TEST(test_viewporter_outside_null_buffer)
 	/* When buffer comes back, source rect matters again. */
 	wl_surface_attach(surf, client->surface->buffer->proxy, 0, 0);
 	wl_surface_commit(surf);
+
+	wait_for_ready_event(client);
+
 	expect_protocol_error(client, &wp_viewport_interface,
 			      WP_VIEWPORT_ERROR_OUT_OF_BUFFER);
 }
@@ -515,6 +534,8 @@ TEST(test_viewporter_no_surface_set_source)
 	/* But the wl_surface does not exist anymore. */
 	set_source(vp, 1000, 1000, 20, 10);
 
+	wait_for_ready_event(client);
+
 	expect_protocol_error(client, &wp_viewport_interface,
 			      WP_VIEWPORT_ERROR_NO_SURFACE);
 }
@@ -531,6 +552,8 @@ TEST(test_viewporter_no_surface_set_destination)
 
 	/* But the wl_surface does not exist anymore. */
 	wp_viewport_set_destination(vp, 99, 99);
+
+	wait_for_ready_event(client);
 
 	expect_protocol_error(client, &wp_viewport_interface,
 			      WP_VIEWPORT_ERROR_NO_SURFACE);
@@ -550,4 +573,6 @@ TEST(test_viewporter_no_surface_destroy)
 	wp_viewport_destroy(vp);
 
 	client_roundtrip(client);
+
+	wait_for_ready_event(client);
 }
