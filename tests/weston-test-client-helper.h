@@ -70,6 +70,7 @@ struct test {
 	int pointer_y;
 	uint32_t n_egl_buffers;
 	int buffer_copy_done;
+	int ready;
 };
 
 struct input {
@@ -213,5 +214,8 @@ load_image_from_png(const char *fname);
 
 struct buffer *
 capture_screenshot_of_output(struct client *client);
+
+void
+wait_for_ready_event(struct client *client);
 
 #endif

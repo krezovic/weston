@@ -532,10 +532,19 @@ test_handle_capture_screenshot_done(void *data, struct weston_test *weston_test)
 	test->buffer_copy_done = 1;
 }
 
+static void
+test_handle_ready(void *data, struct weston_test *weston_test)
+{
+	struct test *test = data;
+
+	test->ready = 1;
+}
+
 static const struct weston_test_listener test_listener = {
 	test_handle_pointer_position,
 	test_handle_n_egl_buffers,
 	test_handle_capture_screenshot_done,
+	test_handle_ready,
 };
 
 static void
@@ -1388,4 +1397,23 @@ capture_screenshot_of_output(struct client *client)
 	 */
 
 	return buffer;
+}
+
+void
+wait_for_ready_event(struct client *client)
+{
+	int ready = 0;
+	struct weston_test *test = client->test->weston_test;
+
+	if (getenv("WESTON_OUTPUT_TESTING")) {
+		weston_test_disconnect_outputs(test);
+
+		if (getenv("WESTON_TEST_OUTPUT_HOTPLUG"))
+			weston_test_hotplug_outputs(test);
+	}
+
+	while (ready == 0) {
+		wl_display_roundtrip(client->wl_display);
+		ready = client->test->ready;
+	}
 }
