@@ -32,6 +32,8 @@
 #include <string.h>
 
 #include "compositor.h"
+#include "compositor-headless.h"
+#include "compositor-headless-private.h"
 #include "compositor/weston.h"
 #include "weston-test-server-protocol.h"
 
@@ -526,6 +528,39 @@ capture_screenshot(struct wl_client *client,
 				     capture_screenshot_done, resource);
 }
 
+static void
+disconnect_outputs(struct wl_client *client,
+		   struct wl_resource *resource)
+{
+	struct weston_test *test = wl_resource_get_user_data(resource);
+	struct weston_compositor *ec = test->compositor;
+	struct weston_output *output, *next;
+
+	wl_list_for_each_safe(output, next, &ec->output_list, link)
+		output->destroy(output);
+
+	/* When simulating hotplug, we need to destroy existing
+	 * outputs first, so let hotplug_outputs send the event
+	 */
+	if (!getenv("WESTON_TEST_OUTPUT_HOTPLUG"))
+		weston_test_send_ready(resource);
+}
+
+
+static void
+hotplug_outputs(struct wl_client *client,
+		struct wl_resource *resource)
+{
+	struct weston_test *test = wl_resource_get_user_data(resource);
+	struct weston_compositor *ec = test->compositor;
+	struct headless_backend *b = (struct headless_backend *) ec->backend;
+
+	if (b->create_virtual_output)
+		b->create_virtual_output(b, &b->config);
+
+	weston_test_send_ready(resource);
+}
+
 static const struct weston_test_interface test_implementation = {
 	move_surface,
 	move_pointer,
@@ -536,6 +571,8 @@ static const struct weston_test_interface test_implementation = {
 	device_add,
 	get_n_buffers,
 	capture_screenshot,
+	disconnect_outputs,
+	hotplug_outputs,
 };
 
 static void
@@ -554,6 +591,9 @@ bind_test(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 				       &test_implementation, test, NULL);
 
 	notify_pointer_position(test, resource);
+
+	if (!getenv("WESTON_OUTPUT_TESTING"))
+		weston_test_send_ready(resource);
 }
 
 static void
