@@ -34,12 +34,14 @@ extern "C" {
 
 #define WESTON_X11_BACKEND_CONFIG_VERSION 1
 
-struct weston_x11_backend_output_config {
+struct weston_x11_backend_parsed_options {
 	int width;
 	int height;
+	int scale;
+};
+
+struct weston_x11_backend_output_config {
 	char *name;
-	uint32_t transform;
-	int32_t scale;
 };
 
 struct weston_x11_backend_config {
@@ -53,6 +55,8 @@ struct weston_x11_backend_config {
 
 	uint32_t num_outputs;
 	struct weston_x11_backend_output_config *outputs;
+
+	struct weston_x11_backend_parsed_options options;
 };
 
 #ifdef  __cplusplus
