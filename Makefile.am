@@ -81,7 +81,6 @@ libweston_la_SOURCES =					\
 	libweston/compositor-rdp.h			\
 	libweston/compositor-wayland.h			\
 	libweston/compositor-x11.h			\
-	libweston/compositor-x11-private.h		\
 	libweston/input.c				\
 	libweston/data-device.c				\
 	libweston/screenshooter.c			\
@@ -288,19 +287,7 @@ x11_backend_la_CFLAGS =				\
 x11_backend_la_SOURCES = 			\
 	libweston/compositor-x11.c		\
 	libweston/compositor-x11.h		\
-	libweston/compositor-x11-private.h	\
 	shared/helpers.h
-
-module_LTLIBRARIES += x11-hotplug.la
-
-x11_hotplug_la_LDFLAGS = -module -avoid-version
-
-x11_hotplug_la_CFLAGS =				\
-	$(COMPOSITOR_CFLAGS)			\
-	$(AM_CFLAGS)
-
-x11_hotplug_la_SOURCES =			\
-	libweston/x11-hotplug.c
 endif
 
 INPUT_BACKEND_LIBS = $(LIBINPUT_BACKEND_LIBS)

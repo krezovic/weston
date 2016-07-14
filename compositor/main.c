@@ -568,8 +568,7 @@ usage(int error_code)
 		"  --fullscreen\t\tRun in fullscreen mode\n"
 		"  --use-pixman\t\tUse the pixman (CPU) renderer\n"
 		"  --output-count=COUNT\tCreate multiple outputs\n"
-		"  --no-input\t\tDont create input devices\n"
-		"  --no-outputs\t\tDo not create any outputs\n\n");
+		"  --no-input\t\tDont create input devices\n\n");
 #endif
 
 	exit(error_code);
@@ -1202,7 +1201,6 @@ load_x11_backend(struct weston_compositor *c,
 	       { WESTON_OPTION_INTEGER, "output-count", 0, &option_count },
 	       { WESTON_OPTION_BOOLEAN, "no-input", 0, &config.no_input },
 	       { WESTON_OPTION_BOOLEAN, "use-pixman", 0, &config.use_pixman },
-	       { WESTON_OPTION_BOOLEAN, "no-outputs", 0, &config.no_outputs },
 	};
 
 	parse_options(options, ARRAY_LENGTH(options), argc, argv);
@@ -1288,8 +1286,6 @@ load_x11_backend(struct weston_compositor *c,
 	/* load the actual backend and configure it */
 	ret = weston_compositor_load_backend(c, WESTON_BACKEND_X11,
 					     &config.base);
-
-	return ret;
 
 out:
 	for (j = 0; j < config.num_outputs; ++j)

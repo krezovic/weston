@@ -53,8 +53,6 @@ struct weston_x11_backend_config {
 
 	uint32_t num_outputs;
 	struct weston_x11_backend_output_config *outputs;
-
-	bool no_outputs;
 };
 
 #ifdef  __cplusplus
