@@ -1561,17 +1561,16 @@ handle_output_configure(struct wl_listener *listener, void *data)
 				   t, current_config.name);
 		free(t);
 
+		/* We'll use name from the output pointer */
+		free(current_config.name);
+
 		config = current_config;
 
 		break;
 	}
 
-	if (config.name)
-		fprintf(stderr, "name: %s\n", config.name);
-	fprintf(stderr, "width: %d\n", config.width);
-	fprintf(stderr, "height: %d\n", config.height);
-	fprintf(stderr, "scale: %d\n", config.scale);
-	fprintf(stderr, "transform: %d\n", config.transform);
+	/* Avoid double free */
+	config.name = strdup(output->name);
 
 	output->configure(output, &config);
 
