@@ -1648,7 +1648,7 @@ create_default_output_config(char *name)
 	if (!config)
 		return NULL;
 
-	config->name = name ? name : NULL;
+	config->name = name ? strdup(name) : NULL;
 	config->width = 1024;
 	config->height = 600;
 	config->scale = 1;
