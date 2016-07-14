@@ -741,6 +741,7 @@ struct weston_compositor {
 	struct wl_signal update_input_panel_signal;
 
 	struct wl_signal seat_created_signal;
+	struct wl_signal output_pending_signal;
 	struct wl_signal output_created_signal;
 	struct wl_signal output_destroyed_signal;
 	struct wl_signal output_moved_signal;
@@ -752,6 +753,7 @@ struct weston_compositor {
 	struct weston_layer fade_layer;
 	struct weston_layer cursor_layer;
 
+	struct wl_list pending_output_list;
 	struct wl_list output_list;
 	struct wl_list seat_list;
 	struct wl_list layer_list;
@@ -1726,6 +1728,45 @@ weston_seat_set_keyboard_focus(struct weston_seat *seat,
 
 int
 weston_compositor_load_xwayland(struct weston_compositor *compositor);
+
+struct weston_output_config {
+	char *name;
+	int width;
+	int height;
+	int32_t scale;
+	uint32_t transform;
+};
+
+struct weston_pending_output {
+	struct weston_compositor *compositor;
+
+	char *name;
+	int destroying;
+
+	struct wl_list link; /* struct weston_compositor::pending_output_list */
+
+	struct weston_output_config *default_config;
+
+	void (*configure) (struct weston_pending_output *output,
+			   struct weston_output_config *config);
+
+	void *user_data;
+};
+
+struct weston_pending_output *
+weston_compositor_create_pending_output(struct weston_compositor *compositor,
+					const char *name);
+
+void
+weston_compositor_add_pending_output(struct weston_compositor *compositor,
+				     struct weston_pending_output *output);
+
+void
+weston_compositor_remove_pending_output(struct weston_pending_output *output);
+
+struct weston_pending_output *
+weston_compositor_pending_output_from_name(struct weston_compositor *compositor,
+					   const char *name);
 
 #ifdef  __cplusplus
 }

@@ -4652,6 +4652,71 @@ timeline_key_binding_handler(struct weston_keyboard *keyboard, uint32_t time,
 		weston_timeline_open(compositor);
 }
 
+WL_EXPORT struct weston_pending_output *
+weston_compositor_create_pending_output(struct weston_compositor *compositor,
+					const char *name)
+{
+	struct weston_pending_output *output;
+
+	output = zalloc(sizeof *output);
+	if (!output) {
+		weston_log("out of memory");
+		return NULL;
+	}
+
+	output->compositor = compositor;
+	output->name = strdup(name);
+	output->destroying = 0;
+
+	output->default_config = NULL;
+	output->configure = NULL;
+	output->user_data = NULL;
+
+	wl_list_init(&output->link);
+
+	return output;
+}
+
+WL_EXPORT void
+weston_compositor_add_pending_output(struct weston_compositor *compositor,
+				     struct weston_pending_output *output)
+{
+	wl_list_insert(compositor->pending_output_list.prev, &output->link);
+	wl_signal_emit(&compositor->output_pending_signal, output);
+}
+
+WL_EXPORT void
+weston_compositor_remove_pending_output(struct weston_pending_output *output)
+{
+	output->destroying = 1;
+
+	wl_list_remove(&output->link);
+
+	if (output->name)
+		free(output->name);
+
+	if (output->default_config->name)
+		free(output->default_config->name);
+
+	if (output->default_config)
+		free(output->default_config);
+
+	free(output);
+}
+
+WL_EXPORT struct weston_pending_output *
+weston_compositor_pending_output_from_name(struct weston_compositor *compositor,
+					   const char *name)
+{
+	struct weston_pending_output *output, *next;
+
+	wl_list_for_each_safe(output, next, &compositor->pending_output_list, link)
+		if (!strcmp(output->name, name))
+			return output;
+
+	return NULL;
+}
+
 /** Create the compositor.
  *
  * This functions creates and initializes a compositor instance.
@@ -4684,6 +4749,7 @@ weston_compositor_create(struct wl_display *display, void *user_data)
 	wl_signal_init(&ec->hide_input_panel_signal);
 	wl_signal_init(&ec->update_input_panel_signal);
 	wl_signal_init(&ec->seat_created_signal);
+	wl_signal_init(&ec->output_pending_signal);
 	wl_signal_init(&ec->output_created_signal);
 	wl_signal_init(&ec->output_destroyed_signal);
 	wl_signal_init(&ec->output_moved_signal);
@@ -4714,6 +4780,7 @@ weston_compositor_create(struct wl_display *display, void *user_data)
 	wl_list_init(&ec->plane_list);
 	wl_list_init(&ec->layer_list);
 	wl_list_init(&ec->seat_list);
+	wl_list_init(&ec->pending_output_list);
 	wl_list_init(&ec->output_list);
 	wl_list_init(&ec->key_binding_list);
 	wl_list_init(&ec->modifier_binding_list);
@@ -4751,8 +4818,12 @@ WL_EXPORT void
 weston_compositor_shutdown(struct weston_compositor *ec)
 {
 	struct weston_output *output, *next;
+	struct weston_pending_output *p_output, *p_next;
 
 	wl_event_source_remove(ec->idle_source);
+
+	wl_list_for_each_safe(p_output, p_next, &ec->pending_output_list, link)
+		weston_compositor_remove_pending_output(p_output);
 
 	/* Destroy all outputs associated with this compositor */
 	wl_list_for_each_safe(output, next, &ec->output_list, link)

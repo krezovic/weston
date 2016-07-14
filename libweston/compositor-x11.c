@@ -119,6 +119,12 @@ struct x11_output {
 	int32_t                 scale;
 };
 
+struct x11_output_user_data {
+	bool fullscreen;
+	bool no_input;
+	struct weston_x11_backend_parsed_options options;
+};
+
 struct window_delete_data {
 	struct x11_backend	*backend;
 	xcb_window_t		window;
@@ -1573,14 +1579,107 @@ init_gl_renderer(struct x11_backend *b)
 	return ret;
 }
 
+static void
+x11_output_configure(struct weston_pending_output *output,
+		     struct weston_output_config *config)
+{
+	struct weston_compositor *ec = output->compositor;
+	struct x11_backend *b = (struct x11_backend *)ec->backend;
+	struct x11_output_user_data *user_data =
+		(struct x11_output_user_data *)output->user_data;
+
+	struct weston_x11_backend_parsed_options options = user_data->options;
+
+	struct weston_output *last_output;
+	struct x11_output *new_output;
+	int width, height, scale;
+	int x;
+
+	if (wl_list_empty(&ec->output_list)) {
+		x = 0;
+	} else {
+		wl_list_for_each_reverse(last_output, &ec->output_list, link)
+			if (last_output)
+				break;
+
+		x = pixman_region32_extents(&last_output->region)->x2;
+	}
+
+	/* options from command line */
+	width = options.width ? options.width : config->width;
+	height = options.height ? options.height : config->height;
+	scale = options.scale ? options.scale : config->scale;
+
+	if (width < 1) {
+		weston_log("Invalid width \"%d\" for output %s\n",
+			   width, output->name);
+		goto err;
+	}
+
+	if (height < 1) {
+		weston_log("Invalid height \"%d\" for output %s\n",
+			   height, output->name);
+		goto err;
+	}
+
+	new_output = x11_backend_create_output(b,
+					       x,
+					       0,
+					       width,
+					       height,
+				               user_data->fullscreen,
+					       user_data->no_input,
+			                       output->name,
+					       config->transform,
+					       scale);
+	if (new_output == NULL)
+		weston_log("Failed to create configured x11 output\n");
+
+err:
+	free(output->user_data);
+	weston_compositor_remove_pending_output(output);
+}
+
+static struct weston_output_config *
+create_default_output_config(char *name)
+{
+	struct weston_output_config *config;
+	config = zalloc(sizeof *config);
+	if (!config)
+		return NULL;
+
+	config->name = name ? strdup(name) : NULL;
+	config->width = 1024;
+	config->height = 600;
+	config->scale = 1;
+	config->transform = WL_OUTPUT_TRANSFORM_NORMAL;
+
+	return config;
+}
+
+static struct x11_output_user_data *
+create_output_user_data(struct weston_x11_backend_config *config)
+{
+	struct x11_output_user_data *user_data;
+
+	user_data = zalloc(sizeof *user_data);
+	if (!user_data)
+			return NULL;
+
+	user_data->fullscreen = config->fullscreen;
+	user_data->no_input = config->no_input;
+	user_data->options = config->options;
+
+	return user_data;
+}
+
 static struct x11_backend *
 x11_backend_create(struct weston_compositor *compositor,
 		   struct weston_x11_backend_config *config)
 {
 	struct x11_backend *b;
-	struct x11_output *output;
 	struct wl_event_loop *loop;
-	int x = 0;
+	struct weston_pending_output *output;
 	unsigned i;
 
 	b = zalloc(sizeof *b);
@@ -1633,44 +1732,6 @@ x11_backend_create(struct weston_compositor *compositor,
 		goto err_renderer;
 	}
 
-	for (i = 0; i < config->num_outputs; ++i) {
-		struct weston_x11_backend_output_config *output_iterator =
-			&config->outputs[i];
-
-		if (output_iterator->name == NULL) {
-			continue;
-		}
-
-		if (output_iterator->width < 1) {
-			weston_log("Invalid width \"%d\" for output %s\n",
-				   output_iterator->width, output_iterator->name);
-			goto err_x11_input;
-		}
-
-		if (output_iterator->height < 1) {
-			weston_log("Invalid height \"%d\" for output %s\n",
-				   output_iterator->height, output_iterator->name);
-			goto err_x11_input;
-		}
-
-		output = x11_backend_create_output(b,
-						   x,
-						   0,
-						   output_iterator->width,
-						   output_iterator->height,
-						   config->fullscreen,
-						   config->no_input,
-						   output_iterator->name,
-						   output_iterator->transform,
-						   output_iterator->scale);
-		if (output == NULL) {
-			weston_log("Failed to create configured x11 output\n");
-			goto err_x11_input;
-		}
-
-		x = pixman_region32_extents(&output->base.region)->x2;
-	}
-
 	loop = wl_display_get_event_loop(compositor->wl_display);
 	b->xcb_source =
 		wl_event_loop_add_fd(loop,
@@ -1687,8 +1748,41 @@ x11_backend_create(struct weston_compositor *compositor,
 
 	compositor->backend = &b->base;
 
+	/* Needs backend fully initialized */
+	for (i = 0; i < config->num_outputs; ++i) {
+		struct weston_x11_backend_output_config *output_iterator =
+			&config->outputs[i];
+
+		if (output_iterator->name == NULL) {
+			continue;
+		}
+
+		output = weston_compositor_create_pending_output(compositor, output_iterator->name);
+
+		if (!output)
+			goto err_x11_input;
+
+		output->user_data = create_output_user_data(config);
+
+		if (!output->user_data)
+			goto err_alloc;
+
+		output->default_config = create_default_output_config(output_iterator->name);
+
+		if (!output->default_config)
+			goto err_alloc2;
+
+		output->configure = x11_output_configure;
+
+		weston_compositor_add_pending_output(compositor, output);
+	}
+
 	return b;
 
+err_alloc2:
+	free(output->user_data);
+err_alloc:
+	weston_compositor_remove_pending_output(output);
 err_x11_input:
 	x11_input_destroy(b);
 err_renderer:
@@ -1696,6 +1790,7 @@ err_renderer:
 err_xdisplay:
 	XCloseDisplay(b->dpy);
 err_free:
+	compositor->backend = NULL;
 	free(b);
 	return NULL;
 }

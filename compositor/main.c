@@ -1166,10 +1166,6 @@ weston_x11_backend_config_append_output_config(struct weston_x11_backend_config 
 		return -1;
 
 	config->outputs = new_outputs;
-	config->outputs[config->num_outputs].width = output_config->width;
-	config->outputs[config->num_outputs].height = output_config->height;
-	config->outputs[config->num_outputs].transform = output_config->transform;
-	config->outputs[config->num_outputs].scale = output_config->scale;
 	config->outputs[config->num_outputs].name = strdup(output_config->name);
 	config->num_outputs++;
 
@@ -1182,6 +1178,7 @@ load_x11_backend(struct weston_compositor *c,
 {
 	struct weston_x11_backend_output_config default_output;
 	struct weston_x11_backend_config config = {{ 0, }};
+	struct weston_x11_backend_parsed_options parsed_options;
 	struct weston_config_section *section;
 	int ret = 0;
 	int option_width = 0;
@@ -1205,11 +1202,15 @@ load_x11_backend(struct weston_compositor *c,
 
 	parse_options(options, ARRAY_LENGTH(options), argc, argv);
 
+	parsed_options.width = option_width;
+	parsed_options.height = option_height;
+	parsed_options.scale = option_scale;
+
+	config.options = parsed_options;
+
 	section = NULL;
 	while (weston_config_next_section(wc, &section, &section_name)) {
 		struct weston_x11_backend_output_config current_output = { 0, };
-		char *t;
-		char *mode;
 
 		if (strcmp(section_name, "output") != 0) {
 			continue;
@@ -1220,35 +1221,6 @@ load_x11_backend(struct weston_compositor *c,
 			free(current_output.name);
 			continue;
 		}
-
-		weston_config_section_get_string(section, "mode", &mode, "1024x600");
-		if (sscanf(mode, "%dx%d", &current_output.width,
-			   &current_output.height) != 2) {
-			weston_log("Invalid mode \"%s\" for output %s\n",
-				   mode, current_output.name);
-			current_output.width = 1024;
-			current_output.height = 600;
-		}
-		free(mode);
-		if (current_output.width < 1)
-			current_output.width = 1024;
-		if (current_output.height < 1)
-			current_output.height = 600;
-		if (option_width)
-			current_output.width = option_width;
-		if (option_height)
-			current_output.height = option_height;
-
-		weston_config_section_get_int(section, "scale", &current_output.scale, 1);
-		if (option_scale)
-			current_output.scale = option_scale;
-
-		weston_config_section_get_string(section,
-						 "transform", &t, "normal");
-		if (weston_parse_transform(t, &current_output.transform) < 0)
-			weston_log("Invalid transform \"%s\" for output %s\n",
-				   t, current_output.name);
-		free(t);
 
 		if (weston_x11_backend_config_append_output_config(&config, &current_output) < 0) {
 			ret = -1;
@@ -1261,10 +1233,6 @@ load_x11_backend(struct weston_compositor *c,
 	}
 
 	default_output.name = NULL;
-	default_output.width = option_width ? option_width : 1024;
-	default_output.height = option_height ? option_height : 600;
-	default_output.scale = option_scale ? option_scale : 1;
-	default_output.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 
 	for (i = output_count; i < option_count; i++) {
 		if (asprintf(&default_output.name, "screen%d", i) < 0) {
@@ -1533,6 +1501,82 @@ load_backend(struct weston_compositor *compositor, const char *backend,
 	return -1;
 }
 
+static void
+handle_output_configure(struct wl_listener *listener, void *data)
+{
+	struct weston_pending_output *output = data;
+	struct weston_output_config *default_config = output->default_config;
+	struct weston_compositor *ec = output->compositor;
+	struct weston_config *wc = weston_compositor_get_user_data(ec);
+
+	struct weston_output_config config = *default_config;
+	struct weston_config_section *section;
+	char const *section_name;
+	char *default_mode;
+
+	if (output->destroying)
+		return;
+
+	if (!asprintf(&default_mode, "%dx%d", default_config->width, default_config->height)) {
+		weston_compositor_remove_pending_output(output);
+		return;
+	}
+
+	section = NULL;
+	while (weston_config_next_section(wc, &section, &section_name)) {
+		struct weston_output_config current_config = { 0, };
+		char *t;
+		char *mode;
+
+		if (strcmp(section_name, "output") != 0) {
+			continue;
+		}
+
+		weston_config_section_get_string(section, "name", &current_config.name, NULL);
+		if (current_config.name == NULL || strcmp(current_config.name, output->name) != 0) {
+			free(current_config.name);
+			continue;
+		}
+
+		weston_config_section_get_string(section, "mode", &mode, default_mode);
+		if (sscanf(mode, "%dx%d", &current_config.width,
+			   &current_config.height) != 2) {
+			weston_log("Invalid mode \"%s\" for output %s\n",
+				   mode, current_config.name);
+			current_config.width = default_config->width;
+			current_config.height = default_config->height;
+		}
+		free(mode);
+		if (current_config.width < 1)
+			current_config.width = default_config->width;
+		if (current_config.height < 1)
+			current_config.height = default_config->height;
+
+		weston_config_section_get_int(section, "scale", &current_config.scale, default_config->scale);
+
+		weston_config_section_get_string(section,
+						 "transform", &t, "normal");
+		if (weston_parse_transform(t, &current_config.transform) < 0)
+			weston_log("Invalid transform \"%s\" for output %s\n",
+				   t, current_config.name);
+		free(t);
+
+		/* We'll use name from the output pointer */
+		free(current_config.name);
+
+		config = current_config;
+
+		break;
+	}
+
+	/* Avoid double free */
+	config.name = strdup(output->name);
+
+	output->configure(output, &config);
+
+	free(config.name);
+}
+
 static char *
 copy_command_line(int argc, char * const argv[])
 {
@@ -1579,6 +1623,7 @@ int main(int argc, char *argv[])
 	struct weston_config_section *section;
 	struct wl_client *primary_client;
 	struct wl_listener primary_client_destroyed;
+	struct wl_listener output_pending_listener;
 	struct weston_seat *seat;
 
 	const struct weston_option core_options[] = {
@@ -1661,6 +1706,9 @@ int main(int argc, char *argv[])
 
 	if (weston_compositor_init_config(ec, config) < 0)
 		goto out;
+
+	output_pending_listener.notify = handle_output_configure;
+	wl_signal_add(&ec->output_pending_signal, &output_pending_listener);
 
 	if (load_backend(ec, backend, &argc, argv, config) < 0) {
 		weston_log("fatal: failed to create compositor backend\n");
