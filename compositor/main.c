@@ -1256,8 +1256,8 @@ load_x11_backend(struct weston_compositor *c,
 					     &config.base);
 
 out:
-	for (j = 0; j < config.num_outputs; ++j)
-		free(config.outputs[j].name);
+	//for (j = 0; j < config.num_outputs; ++j)
+	//	free(config.outputs[j].name);
 	free(config.outputs);
 
 	return ret;
