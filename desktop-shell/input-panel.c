@@ -93,10 +93,11 @@ show_input_panel_surface(struct input_panel_surface *ipsurf)
 	if (ipsurf->anim)
 		weston_view_animation_destroy(ipsurf->anim);
 
-	ipsurf->anim =
-		weston_slide_run(ipsurf->view,
-				 ipsurf->surface->height * 0.9, 0,
-				 input_panel_slide_done, ipsurf);
+	if (!wl_list_empty(&shell->compositor->output_list))
+		ipsurf->anim =
+			weston_slide_run(ipsurf->view,
+					 ipsurf->surface->height * 0.9, 0,
+					 input_panel_slide_done, ipsurf);
 }
 
 static void
