@@ -113,6 +113,11 @@ exposay_animate_in_done(struct weston_view_animation *animation, void *data)
 static void
 exposay_animate_in(struct exposay_surface *esurface)
 {
+	struct weston_compositor *ec = esurface->shell->compositor;
+
+	if (wl_list_empty(&ec->output_list))
+		return;
+
 	exposay_in_flight_inc(esurface->shell);
 
 	weston_move_scale_run(esurface->view,
@@ -136,6 +141,11 @@ exposay_animate_out_done(struct weston_view_animation *animation, void *data)
 static void
 exposay_animate_out(struct exposay_surface *esurface)
 {
+	struct weston_compositor *ec = esurface->shell->compositor;
+
+	if (wl_list_empty(&ec->output_list))
+		return;
+
 	exposay_in_flight_inc(esurface->shell);
 
 	/* Remove the static transformation set up by

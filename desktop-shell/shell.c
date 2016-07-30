@@ -850,10 +850,11 @@ focus_state_surface_destroy(struct wl_listener *listener, void *data)
 			if (state->ws->focus_animation)
 				weston_view_animation_destroy(state->ws->focus_animation);
 
-			state->ws->focus_animation = weston_fade_run(
-				state->ws->fsurf_front->view,
-				state->ws->fsurf_front->view->alpha, 0.0, 300,
-				focus_animation_done, state->ws);
+			if (!wl_list_empty(&shell->compositor->output_list))
+				state->ws->focus_animation = weston_fade_run(
+					state->ws->fsurf_front->view,
+					state->ws->fsurf_front->view->alpha, 0.0, 300,
+					focus_animation_done, state->ws);
 		}
 
 		wl_list_remove(&state->link);
@@ -1030,24 +1031,29 @@ animate_focus_change(struct desktop_shell *shell, struct workspace *ws,
 					  &ws->fsurf_front->view->layer_link);
 
 	if (focus_surface_created) {
-		ws->focus_animation = weston_fade_run(
-			ws->fsurf_front->view,
-			ws->fsurf_front->view->alpha, 0.4, 300,
-			focus_animation_done, ws);
+		if (!wl_list_empty(&shell->compositor->output_list))
+			ws->focus_animation = weston_fade_run(
+				ws->fsurf_front->view,
+				ws->fsurf_front->view->alpha, 0.4, 300,
+				focus_animation_done, ws);
 	} else if (from) {
 		weston_layer_entry_insert(&from->layer_link,
 					  &ws->fsurf_back->view->layer_link);
-		ws->focus_animation = weston_stable_fade_run(
-			ws->fsurf_front->view, 0.0,
-			ws->fsurf_back->view, 0.4,
-			focus_animation_done, ws);
+
+		if (!wl_list_empty(&shell->compositor->output_list))
+			ws->focus_animation = weston_stable_fade_run(
+				ws->fsurf_front->view, 0.0,
+				ws->fsurf_back->view, 0.4,
+				focus_animation_done, ws);
 	} else if (to) {
 		weston_layer_entry_insert(&ws->layer.view_list,
 					  &ws->fsurf_back->view->layer_link);
-		ws->focus_animation = weston_stable_fade_run(
-			ws->fsurf_front->view, 0.0,
-			ws->fsurf_back->view, 0.4,
-			focus_animation_done, ws);
+
+		if (!wl_list_empty(&shell->compositor->output_list))
+			ws->focus_animation = weston_stable_fade_run(
+				ws->fsurf_front->view, 0.0,
+				ws->fsurf_back->view, 0.4,
+				focus_animation_done, ws);
 	}
 }
 
@@ -3670,8 +3676,9 @@ handle_resource_destroy(struct wl_listener *listener, void *data)
 	pixman_region32_fini(&shsurf->surface->input);
 	pixman_region32_init(&shsurf->surface->input);
 	if (shsurf->shell->win_close_animation_type == ANIMATION_FADE) {
-		weston_fade_run(shsurf->view, 1.0, 0.0, 300.0,
-				fade_out_done, shsurf);
+		if (!wl_list_empty(&shsurf->surface->compositor->output_list))
+			weston_fade_run(shsurf->view, 1.0, 0.0, 300.0,
+					fade_out_done, shsurf);
 	} else {
 		weston_surface_destroy(shsurf->surface);
 	}
@@ -5440,10 +5447,11 @@ shell_fade(struct desktop_shell *shell, enum fade_type type)
 	} else if (shell->fade.animation) {
 		weston_fade_update(shell->fade.animation, tint);
 	} else {
-		shell->fade.animation =
-			weston_fade_run(shell->fade.view,
-					1.0 - tint, tint, 300.0,
-					shell_fade_done, shell);
+		if (!wl_list_empty(&shell->compositor->output_list))
+			shell->fade.animation =
+				weston_fade_run(shell->fade.view,
+						1.0 - tint, tint, 300.0,
+						shell_fade_done, shell);
 	}
 }
 
@@ -5733,7 +5741,8 @@ map(struct desktop_shell *shell, struct shell_surface *shsurf,
 	}
 
 	if (shsurf->type == SHELL_SURFACE_TOPLEVEL &&
-	    !shsurf->state.maximized && !shsurf->state.fullscreen)
+	    !shsurf->state.maximized && !shsurf->state.fullscreen &&
+	    !wl_list_empty(&shsurf->surface->compositor->output_list))
 	{
 		switch (shell->win_animation_type) {
 		case ANIMATION_FADE:
