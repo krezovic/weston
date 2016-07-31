@@ -35,6 +35,7 @@ extern "C" {
 struct weston_compositor;
 struct weston_output;
 struct weston_output_config;
+struct weston_drm_backend_output_config;
 
 #define WESTON_OUTPUT_API_NAME "weston_output_api_v1"
 
@@ -47,6 +48,9 @@ struct weston_output_api {
 
 	int (*fbdev_output_init)(struct weston_output *output,
 				 uint32_t transform);
+
+	int (*drm_output_init)(struct weston_output *output,
+			       struct weston_drm_backend_output_config *config);
 };
 
 static inline const struct weston_output_api *

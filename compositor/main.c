@@ -996,48 +996,6 @@ find_generic_output_config(struct weston_compositor *compositor,
 	return config;
 }
 
-static enum weston_drm_backend_output_mode
-drm_configure_output(struct weston_compositor *c,
-		     bool use_current_mode,
-		     const char *name,
-		     struct weston_drm_backend_output_config *config)
-{
-	struct weston_config *wc = wet_get_config(c);
-	struct weston_config_section *section;
-	char *s;
-	int scale;
-	enum weston_drm_backend_output_mode mode =
-		WESTON_DRM_BACKEND_OUTPUT_PREFERRED;
-
-	section = weston_config_get_section(wc, "output", "name", name);
-	weston_config_section_get_string(section, "mode", &s, "preferred");
-	if (strcmp(s, "off") == 0) {
-		free(s);
-		return WESTON_DRM_BACKEND_OUTPUT_OFF;
-	}
-
-	if (use_current_mode || strcmp(s, "current") == 0) {
-		mode = WESTON_DRM_BACKEND_OUTPUT_CURRENT;
-	} else if (strcmp(s, "preferred") != 0) {
-		config->modeline = s;
-		s = NULL;
-	}
-	free(s);
-
-	weston_config_section_get_int(section, "scale", &scale, 1);
-	config->base.scale = scale >= 1 ? scale : 1;
-	weston_config_section_get_string(section, "transform", &s, "normal");
-	if (weston_parse_transform(s, &config->base.transform) < 0)
-		weston_log("Invalid transform \"%s\" for output %s\n",
-			   s, name);
-	free(s);
-
-	weston_config_section_get_string(section,
-					 "gbm-format", &config->gbm_format, NULL);
-	weston_config_section_get_string(section, "seat", &config->seat, "");
-	return mode;
-}
-
 static void
 configure_input_device(struct weston_compositor *compositor,
 		       struct libinput_device *device)
@@ -1059,6 +1017,66 @@ configure_input_device(struct weston_compositor *compositor,
 					       enable_tap_default);
 		libinput_device_config_tap_set_enabled(device,
 						       enable_tap);
+	}
+}
+
+static void
+drm_backend_output_configure(struct wl_listener *listener, void *data)
+{
+	struct weston_output *output = data;
+	struct weston_config *wc = weston_compositor_get_user_data(output->compositor);
+	const struct weston_output_api *api = weston_output_get_api(output->compositor);
+	enum weston_drm_backend_output_mode mode =
+		WESTON_DRM_BACKEND_OUTPUT_PREFERRED;
+
+	struct weston_config_section *section;
+	struct weston_drm_backend_output_config config = {{ 0, }};
+	char *s;
+	int ret, scale;
+
+	if (!api || !api->drm_output_init) {
+		weston_log("Cannot use weston_output_api.\n");
+		weston_compositor_shutdown(output->compositor);
+	}
+
+	section = weston_config_get_section(wc, "output", "name", output->name);
+	weston_config_section_get_string(section, "mode", &s, "preferred");
+
+	if (strcmp(s, "off") == 0) {
+		mode = WESTON_DRM_BACKEND_OUTPUT_OFF;
+	} else if (strcmp(s, "current") == 0) {
+		mode = WESTON_DRM_BACKEND_OUTPUT_CURRENT;
+	} else if (strcmp(s, "preferred") != 0) {
+		config.modeline = s;
+		s = NULL;
+	}
+	free(s);
+
+	config.mode = mode;
+
+	weston_config_section_get_int(section, "scale", &scale, 1);
+	config.base.scale = scale >= 1 ? scale : 1;
+
+	weston_config_section_get_string(section, "transform", &s, "normal");
+	if (weston_parse_transform(s, &config.base.transform) < 0)
+		weston_log("Invalid transform \"%s\" for output %s\n",
+			   s, output->name);
+	free(s);
+
+	weston_config_section_get_string(section,
+					 "gbm-format", &config.gbm_format, NULL);
+
+	weston_config_section_get_string(section, "seat", &config.seat, "");
+
+	ret = api->drm_output_init(output, &config);
+
+	free(config.modeline);
+	free(config.gbm_format);
+	free(config.seat);
+
+	if (ret < 0) {
+		weston_log("Cannot configure an output using weston_output_api.\n");
+		weston_compositor_shutdown(output->compositor);
 	}
 }
 
@@ -1087,11 +1105,12 @@ load_drm_backend(struct weston_compositor *c,
 
 	config.base.struct_version = WESTON_DRM_BACKEND_CONFIG_VERSION;
 	config.base.struct_size = sizeof(struct weston_drm_backend_config);
-	config.configure_output = drm_configure_output;
 	config.configure_device = configure_input_device;
 
 	ret = weston_compositor_load_backend(c, WESTON_BACKEND_DRM,
 					     &config.base);
+
+	handle_output_configure = drm_backend_output_configure;
 
 	free(config.gbm_format);
 	free(config.seat_id);
