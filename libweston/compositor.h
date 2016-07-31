@@ -240,6 +240,8 @@ struct weston_output {
 			  uint16_t *b);
 
 	struct weston_timeline_object timeline;
+
+	int initialized;
 };
 
 enum weston_pointer_motion_mask {
@@ -753,6 +755,7 @@ struct weston_compositor {
 	struct wl_signal update_input_panel_signal;
 
 	struct wl_signal seat_created_signal;
+	struct wl_signal output_pending_signal;
 	struct wl_signal output_created_signal;
 	struct wl_signal output_destroyed_signal;
 	struct wl_signal output_moved_signal;
@@ -764,6 +767,7 @@ struct weston_compositor {
 	struct weston_layer fade_layer;
 	struct weston_layer cursor_layer;
 
+	struct wl_list pending_output_list;
 	struct wl_list output_list;
 	struct wl_list seat_list;
 	struct wl_list layer_list;
@@ -1588,10 +1592,21 @@ void
 weston_output_init(struct weston_output *output, struct weston_compositor *c,
 		   int x, int y, int width, int height, uint32_t transform, int32_t scale);
 void
+weston_output_init_pending(struct weston_output *output,
+			   struct weston_compositor *compositor);
+
+void
 weston_compositor_add_output(struct weston_compositor *compositor,
                              struct weston_output *output);
 void
+weston_compositor_add_pending_output(struct weston_compositor *compositor,
+				     struct weston_output *output);
+
+void
 weston_output_destroy(struct weston_output *output);
+void
+weston_output_destroy_pending(struct weston_output *output);
+
 void
 weston_output_transform_coordinate(struct weston_output *output,
 				   double device_x, double device_y,
