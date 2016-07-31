@@ -4133,6 +4133,16 @@ weston_output_destroy(struct weston_output *output)
 }
 
 WL_EXPORT void
+weston_output_destroy_pending(struct weston_output *output)
+{
+	output->destroying = 1;
+
+	wl_list_remove(&output->link);
+
+	free(output->name);
+}
+
+WL_EXPORT void
 weston_output_update_matrix(struct weston_output *output)
 {
 	float magnification;
@@ -4324,6 +4334,17 @@ weston_output_init(struct weston_output *output, struct weston_compositor *c,
 				 output, bind_output);
 }
 
+WL_EXPORT void
+weston_output_init_pending(struct weston_output *output,
+			   struct weston_compositor *compositor)
+{
+	output->compositor = compositor;
+	output->destroying = 0;
+	output->initialized = 0;
+
+	wl_list_init(&output->link);
+}
+
 /** Adds an output to the compositor's output list and
  *  send the compositor's output_created signal.
  *
@@ -4336,6 +4357,14 @@ weston_compositor_add_output(struct weston_compositor *compositor,
 {
 	wl_list_insert(compositor->output_list.prev, &output->link);
 	wl_signal_emit(&compositor->output_created_signal, output);
+}
+
+WL_EXPORT void
+weston_compositor_add_pending_output(struct weston_compositor *compositor,
+				     struct weston_output *output)
+{
+	wl_list_insert(compositor->pending_output_list.prev, &output->link);
+	wl_signal_emit(&compositor->output_pending_signal, output);
 }
 
 WL_EXPORT void
@@ -4714,6 +4743,7 @@ weston_compositor_create(struct wl_display *display, void *user_data)
 	wl_signal_init(&ec->hide_input_panel_signal);
 	wl_signal_init(&ec->update_input_panel_signal);
 	wl_signal_init(&ec->seat_created_signal);
+	wl_signal_init(&ec->output_pending_signal);
 	wl_signal_init(&ec->output_created_signal);
 	wl_signal_init(&ec->output_destroyed_signal);
 	wl_signal_init(&ec->output_moved_signal);
@@ -4749,6 +4779,7 @@ weston_compositor_create(struct wl_display *display, void *user_data)
 	wl_list_init(&ec->plane_list);
 	wl_list_init(&ec->layer_list);
 	wl_list_init(&ec->seat_list);
+	wl_list_init(&ec->pending_output_list);
 	wl_list_init(&ec->output_list);
 	wl_list_init(&ec->key_binding_list);
 	wl_list_init(&ec->modifier_binding_list);
