@@ -1099,6 +1099,36 @@ load_drm_backend(struct weston_compositor *c,
 	return ret;
 }
 
+static void
+headless_backend_user_data_handler(struct weston_compositor *ec)
+{
+	struct weston_output_config *c = weston_backend_get_user_data(ec);
+
+	free(c);
+}
+
+static void
+headless_backend_output_configure(struct wl_listener *listener, void *data)
+{
+	struct weston_output *output = data;
+	struct weston_compositor *ec = output->compositor;
+	struct weston_output_config *defaults = weston_backend_get_user_data(ec);
+	const struct weston_output_api *api = weston_output_get_api(output->compositor);
+	int ret;
+
+	if (!api || !api->generic_output_init) {
+		weston_log("Cannot use weston_output_api.\n");
+		weston_compositor_shutdown(output->compositor);
+	}
+
+	ret = api->generic_output_init(output, defaults);
+
+	if (ret < 0) {
+		weston_log("Cannot configure an output using weston_output_api.\n");
+		weston_compositor_shutdown(output->compositor);
+	}
+}
+
 static int
 load_headless_backend(struct weston_compositor *c,
 		      int *argc, char **argv, struct weston_config *wc)
@@ -1107,12 +1137,16 @@ load_headless_backend(struct weston_compositor *c,
 	int ret = 0;
 	char *transform = NULL;
 
-	config.width = 1024;
-	config.height = 640;
+	struct weston_output_config *defaults;
+	defaults = zalloc(sizeof *defaults);
+
+	defaults->width = 1024;
+	defaults->height = 640;
+	defaults->transform = WL_OUTPUT_TRANSFORM_NORMAL;
 
 	const struct weston_option options[] = {
-		{ WESTON_OPTION_INTEGER, "width", 0, &config.width },
-		{ WESTON_OPTION_INTEGER, "height", 0, &config.height },
+		{ WESTON_OPTION_INTEGER, "width", 0, &defaults->width },
+		{ WESTON_OPTION_INTEGER, "height", 0, &defaults->height },
 		{ WESTON_OPTION_BOOLEAN, "use-pixman", 0, &config.use_pixman },
 		{ WESTON_OPTION_STRING, "transform", 0, &transform },
 		{ WESTON_OPTION_BOOLEAN, "no-outputs", 0, &config.no_outputs },
@@ -1120,9 +1154,8 @@ load_headless_backend(struct weston_compositor *c,
 
 	parse_options(options, ARRAY_LENGTH(options), argc, argv);
 
-	config.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 	if (transform) {
-		if (weston_parse_transform(transform, &config.transform) < 0)
+		if (weston_parse_transform(transform, &defaults->transform) < 0)
 			weston_log("Invalid transform \"%s\"\n", transform);
 		free(transform);
 	}
@@ -1133,6 +1166,11 @@ load_headless_backend(struct weston_compositor *c,
 	/* load the actual wayland backend and configure it */
 	ret = weston_compositor_load_backend(c, WESTON_BACKEND_HEADLESS,
 					     &config.base);
+
+	weston_backend_set_user_data(c, defaults);
+
+	handle_output_configure = headless_backend_output_configure;
+	handle_backend_user_data = headless_backend_user_data_handler;
 
 	return ret;
 }
