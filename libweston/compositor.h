@@ -730,6 +730,7 @@ struct weston_backend_config {
 struct weston_backend {
 	void (*destroy)(struct weston_compositor *compositor);
 	void (*restore)(struct weston_compositor *compositor);
+	void *user_data;
 };
 
 struct weston_compositor {
@@ -1792,6 +1793,16 @@ weston_seat_set_keyboard_focus(struct weston_seat *seat,
 
 int
 weston_compositor_load_xwayland(struct weston_compositor *compositor);
+
+struct weston_backend *
+weston_output_get_backend(struct weston_output *output);
+
+void
+weston_backend_set_user_data(struct weston_compositor *compositor,
+			     void *data);
+
+void *
+weston_backend_get_user_data(struct weston_compositor *compositor);
 
 #ifdef  __cplusplus
 }
