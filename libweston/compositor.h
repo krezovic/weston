@@ -169,6 +169,13 @@ enum dpms_enum {
 	WESTON_DPMS_OFF
 };
 
+struct weston_output_config {
+	int width;
+	int height;
+	uint32_t transform;
+	int32_t scale;
+};
+
 struct weston_output {
 	uint32_t id;
 	char *name;
