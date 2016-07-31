@@ -4355,6 +4355,25 @@ weston_output_transform_coordinate(struct weston_output *output,
 	*y = p.f[1] / p.f[3];
 }
 
+WL_EXPORT struct weston_backend *
+weston_output_get_backend(struct weston_output *output)
+{
+	return output->compositor->backend;
+}
+
+WL_EXPORT void
+weston_backend_set_user_data(struct weston_compositor *compositor,
+				    void *data)
+{
+	compositor->backend->user_data = data;
+}
+
+WL_EXPORT void *
+weston_backend_get_user_data(struct weston_compositor *compositor)
+{
+	return compositor->backend->user_data;
+}
+
 static void
 destroy_viewport(struct wl_resource *resource)
 {
