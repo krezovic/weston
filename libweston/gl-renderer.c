@@ -168,6 +168,7 @@ struct gl_surface_state {
 
 struct gl_renderer {
 	struct weston_renderer base;
+	struct weston_compositor *compositor;
 	int fragment_shader_debug;
 	int fan_debug;
 	struct weston_binding *fragment_binding;
@@ -217,6 +218,8 @@ struct gl_renderer {
 	struct gl_shader *current_shader;
 
 	struct wl_signal destroy_signal;
+
+	struct wl_listener output_destroy_listener;
 };
 
 static PFNEGLGETPLATFORMDISPLAYEXTPROC get_platform_display = NULL;
@@ -2643,6 +2646,8 @@ gl_renderer_destroy(struct weston_compositor *ec)
 	eglTerminate(gr->egl_display);
 	eglReleaseThread();
 
+	wl_list_remove(&gr->output_destroy_listener.link);
+
 	wl_array_release(&gr->vertices);
 	wl_array_release(&gr->vtxcnt);
 
@@ -2828,6 +2833,21 @@ platform_to_extension(EGLenum platform)
 	}
 }
 
+static void
+output_handle_destroy(struct wl_listener *listener, void *data)
+{
+	struct gl_renderer *gr;
+	struct weston_compositor *ec;
+
+	gr = container_of(listener, struct gl_renderer,
+			  output_destroy_listener);
+	ec = gr->compositor;
+
+	if (wl_list_empty(&ec->output_list))
+		eglMakeCurrent(gr->egl_display, gr->dummy_surface,
+			       gr->dummy_surface, gr->egl_context);
+}
+
 static int
 gl_renderer_create_pbuffer_surface(struct gl_renderer *gr) {
 	EGLConfig pbuffer_config;
@@ -2885,6 +2905,7 @@ gl_renderer_create(struct weston_compositor *ec, EGLenum platform,
 	if (gr == NULL)
 		return -1;
 
+	gr->compositor = ec;
 	gr->base.read_pixels = gl_renderer_read_pixels;
 	gr->base.repaint_output = gl_renderer_repaint_output;
 	gr->base.flush_damage = gl_renderer_flush_damage;
@@ -3136,6 +3157,10 @@ gl_renderer_setup(struct weston_compositor *ec, EGLSurface egl_surface)
 		weston_compositor_add_debug_binding(ec, KEY_F,
 						    fan_debug_repaint_binding,
 						    ec);
+
+	gr->output_destroy_listener.notify = output_handle_destroy;
+	wl_signal_add(&ec->output_destroyed_signal,
+		      &gr->output_destroy_listener);
 
 	weston_log("GL ES 2 renderer features:\n");
 	weston_log_continue(STAMP_SPACE "read-back format: %s\n",
