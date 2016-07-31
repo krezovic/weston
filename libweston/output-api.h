@@ -44,6 +44,9 @@ struct weston_output_api {
 
 	int (*generic_output_create)(struct weston_compositor *compositor,
 				     const char *name);
+
+	int (*fbdev_output_init)(struct weston_output *output,
+				 uint32_t transform);
 };
 
 static inline const struct weston_output_api *

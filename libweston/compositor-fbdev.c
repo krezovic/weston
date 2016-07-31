@@ -50,6 +50,7 @@
 #include "pixman-renderer.h"
 #include "libinput-seat.h"
 #include "presentation-time-server-protocol.h"
+#include "output-api.h"
 
 struct fbdev_backend {
 	struct weston_backend base;
@@ -58,7 +59,6 @@ struct fbdev_backend {
 
 	struct udev *udev;
 	struct udev_input input;
-	uint32_t output_transform;
 	struct wl_listener session_listener;
 };
 
@@ -431,7 +431,6 @@ fbdev_output_create(struct fbdev_backend *backend,
 {
 	struct fbdev_output *output;
 	int fb_fd;
-	struct wl_event_loop *loop;
 
 	weston_log("Creating fbdev output.\n");
 
@@ -443,7 +442,7 @@ fbdev_output_create(struct fbdev_backend *backend,
 	output->device = strdup(device);
 
 	/* Create the frame buffer. */
-	fb_fd = fbdev_frame_buffer_open(output, device, &output->fb_info);
+	fb_fd = fbdev_frame_buffer_open(output, output->device, &output->fb_info);
 	if (fb_fd < 0) {
 		weston_log("Creating frame buffer failed.\n");
 		goto out_free;
@@ -454,9 +453,31 @@ fbdev_output_create(struct fbdev_backend *backend,
 		goto out_free;
 	}
 
+	output->base.destroy = fbdev_output_destroy;
+	output->base.name = strdup("fbdev");
+
+	weston_output_init_pending(&output->base, backend->compositor);
+	weston_compositor_add_pending_output(backend->compositor, &output->base);
+
+	return 0;
+
+out_free:
+	free(output->device);
+	free(output);
+
+	return -1;
+}
+
+static int fbdev_output_init(struct weston_output *out,
+			     uint32_t transform)
+{
+	struct fbdev_output *output = to_fbdev_output(out);
+	struct fbdev_backend *backend = output->backend;
+
+	struct wl_event_loop *loop;
+
 	output->base.start_repaint_loop = fbdev_output_start_repaint_loop;
 	output->base.repaint = fbdev_output_repaint;
-	output->base.destroy = fbdev_output_destroy;
 
 	/* only one static mode in list */
 	output->mode.flags =
@@ -471,13 +492,16 @@ fbdev_output_create(struct fbdev_backend *backend,
 	output->base.subpixel = WL_OUTPUT_SUBPIXEL_UNKNOWN;
 	output->base.make = "unknown";
 	output->base.model = output->fb_info.id;
-	output->base.name = strdup("fbdev");
+
+	wl_list_remove(&output->base.link);
 
 	weston_output_init(&output->base, backend->compositor,
 	                   0, 0, output->fb_info.width_mm,
 	                   output->fb_info.height_mm,
-	                   backend->output_transform,
+	                   transform,
 			   1);
+
+	output->base.initialized = 1;
 
 	if (pixman_renderer_output_create(&output->base) < 0)
 		goto out_hw_surface;
@@ -500,9 +524,6 @@ out_hw_surface:
 	output->hw_surface = NULL;
 	weston_output_destroy(&output->base);
 	fbdev_frame_buffer_destroy(output);
-out_free:
-	free(output->device);
-	free(output);
 
 	return -1;
 }
@@ -517,11 +538,15 @@ fbdev_output_destroy(struct weston_output *base)
 	/* Close the frame buffer. */
 	fbdev_output_disable(base);
 
-	if (base->renderer_state != NULL)
-		pixman_renderer_output_destroy(base);
+	if (output->base.initialized) {
+		if (base->renderer_state != NULL)
+			pixman_renderer_output_destroy(base);
 
-	/* Remove the output. */
-	weston_output_destroy(&output->base);
+		/* Remove the output. */
+		weston_output_destroy(&output->base);
+	} else {
+		weston_output_destroy_pending(&output->base);
+	}
 
 	free(output->device);
 	free(output);
@@ -681,12 +706,19 @@ fbdev_restore(struct weston_compositor *compositor)
 	weston_launcher_restore(compositor->launcher);
 }
 
+struct weston_output_api api = {
+	NULL,
+	NULL,
+	fbdev_output_init,
+};
+
 static struct fbdev_backend *
 fbdev_backend_create(struct weston_compositor *compositor,
                      struct weston_fbdev_backend_config *param)
 {
 	struct fbdev_backend *backend;
 	const char *seat_id = default_seat;
+	int ret;
 
 	weston_log("initializing fbdev backend\n");
 
@@ -721,20 +753,28 @@ fbdev_backend_create(struct weston_compositor *compositor,
 	backend->base.restore = fbdev_restore;
 
 	backend->prev_state = WESTON_COMPOSITOR_ACTIVE;
-	backend->output_transform = param->output_transform;
 
 	weston_setup_vt_switch_bindings(compositor);
 
 	if (pixman_renderer_init(compositor) < 0)
 		goto out_launcher;
 
-	if (fbdev_output_create(backend, param->device) < 0)
-		goto out_launcher;
-
 	udev_input_init(&backend->input, compositor, backend->udev,
 			seat_id, param->configure_device);
 
 	compositor->backend = &backend->base;
+
+	ret = weston_plugin_api_register(compositor, WESTON_OUTPUT_API_NAME,
+					 &api, sizeof(api));
+
+	if (ret < 0) {
+		weston_log("Failed to register output API.\n");
+		goto out_launcher;
+	}
+
+	if (fbdev_output_create(backend, param->device) < 0)
+		goto out_launcher;
+
 	return backend;
 
 out_launcher:
@@ -757,7 +797,6 @@ config_init_to_defaults(struct weston_fbdev_backend_config *config)
 	 * udev, rather than passing a device node in as a parameter. */
 	config->tty = 0; /* default to current tty */
 	config->device = "/dev/fb0"; /* default frame buffer */
-	config->output_transform = WL_OUTPUT_TRANSFORM_NORMAL;
 }
 
 WL_EXPORT int
