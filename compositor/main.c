@@ -927,6 +927,9 @@ handle_exit(struct weston_compositor *c)
 	wl_display_terminate(c->wl_display);
 }
 
+static void (*handle_backend_user_data)(struct weston_compositor *ec) = NULL;
+static void (*handle_output_configure)(struct wl_listener *listener, void *data) = NULL;
+
 static struct weston_output_config *
 find_generic_output_config(struct weston_compositor *compositor,
 			   struct weston_output_config *defaults,
@@ -1645,6 +1648,8 @@ int main(int argc, char *argv[])
 	struct weston_config_section *section;
 	struct wl_client *primary_client;
 	struct wl_listener primary_client_destroyed;
+	struct wl_listener output_pending_listener;
+	struct weston_output *output, *next;
 	struct weston_seat *seat;
 
 	const struct weston_option core_options[] = {
@@ -1733,6 +1738,15 @@ int main(int argc, char *argv[])
 		goto out;
 	}
 
+	if (handle_output_configure) {
+		output_pending_listener.notify = handle_output_configure;
+		wl_signal_add(&ec->output_pending_signal, &output_pending_listener);
+
+		/* Manually add initially created outputs */
+		wl_list_for_each_safe(output, next, &ec->pending_output_list, link)
+			handle_output_configure(NULL, output);
+	}
+
 	catch_signals();
 	segv_compositor = ec;
 
@@ -1817,6 +1831,9 @@ int main(int argc, char *argv[])
 	ret = ec->exit_code;
 
 out:
+	if (handle_backend_user_data)
+		handle_backend_user_data(ec);
+
 	weston_compositor_destroy(ec);
 
 out_signals:
