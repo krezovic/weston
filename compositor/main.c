@@ -69,6 +69,13 @@ struct wet_compositor {
 	struct weston_config *config;
 };
 
+struct wet_output_config {
+	int width;
+	int height;
+	int32_t scale;
+	uint32_t transform;
+};
+
 static FILE *weston_logfile = NULL;
 
 static int cached_tm_mday = -1;
@@ -937,6 +944,71 @@ static void
 handle_exit(struct weston_compositor *c)
 {
 	wl_display_terminate(c->wl_display);
+}
+
+static struct wet_output_config *
+find_generic_output_config(struct weston_compositor *compositor,
+			   struct wet_output_config *defaults,
+			   const char *name)
+{
+	struct weston_config *wc = wet_get_config(compositor);
+	struct weston_config_section *section;
+	char const *section_name;
+	char *default_mode;
+
+	struct wet_output_config *config = NULL;
+
+	if (asprintf(&default_mode, "%dx%d", defaults->width, defaults->height) < 0) {
+		weston_log("Failed to get default configuration.\n");
+		return NULL;
+	}
+
+	section = NULL;
+	while (weston_config_next_section(wc, &section, &section_name)) {
+		struct wet_output_config current_output = { 0, };
+		char *current_name;
+		char *t;
+		char *mode;
+
+		if (strcmp(section_name, "output") != 0) {
+			continue;
+		}
+
+		weston_config_section_get_string(section, "name", &current_name, NULL);
+		if (current_name == NULL || strcmp(name, current_name)) {
+			free(current_name);
+			continue;
+		}
+		free(current_name);
+
+		weston_config_section_get_string(section, "mode", &mode, default_mode);
+		if (sscanf(mode, "%dx%d", &current_output.width,
+			   &current_output.height) != 2) {
+			weston_log("Invalid mode \"%s\" for output %s\n",
+				   mode, name);
+			free(mode);
+			return NULL;
+		}
+		free(mode);
+
+		weston_config_section_get_int(section, "scale", &current_output.scale, 1);
+
+		weston_config_section_get_string(section,
+						 "transform", &t, "normal");
+		if (weston_parse_transform(t, &current_output.transform) < 0) {
+			weston_log("Invalid transform \"%s\" for output %s\n",
+				   t, name);
+			free(t);
+			return NULL;
+		}
+		free(t);
+
+		config = zalloc(sizeof *config);
+		*config = current_output;
+		break;
+	}
+
+	return config;
 }
 
 static enum weston_drm_backend_output_mode
