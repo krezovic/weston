@@ -52,7 +52,7 @@ enum weston_drm_backend_output_mode {
 };
 
 struct weston_drm_backend_output_config {
-	struct weston_backend_output_config base;
+	enum weston_drm_backend_output_mode mode;
 
 	/** The pixel format to be used by the output. Valid values are:
 	 * - NULL - The format set at backend creation time will be used;
