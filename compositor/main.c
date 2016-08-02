@@ -67,6 +67,9 @@
 
 struct wet_compositor {
 	struct weston_config *config;
+
+	void *backend_data;
+	void (*handle_backend_data)(struct weston_compositor *ec);
 };
 
 struct wet_output_config {
@@ -429,6 +432,22 @@ static struct wet_compositor *
 to_wet_compositor(struct weston_compositor *compositor)
 {
 	return weston_compositor_get_user_data(compositor);
+}
+
+static void *
+wet_get_backend_data(struct weston_compositor *ec)
+{
+	struct wet_compositor *compositor = to_wet_compositor(ec);
+
+	return compositor->backend_data;
+}
+
+static void
+wet_set_backend_data(struct weston_compositor *ec, void *data)
+{
+	struct wet_compositor *compositor = to_wet_compositor(ec);
+
+	compositor->backend_data = data;
 }
 
 WL_EXPORT struct weston_config *
@@ -1754,6 +1773,8 @@ int main(int argc, char *argv[])
 		goto out;
 	}
 
+	weston_pending_output_coldplug(ec);
+
 	catch_signals();
 	segv_compositor = ec;
 
@@ -1838,6 +1859,9 @@ int main(int argc, char *argv[])
 	ret = ec->exit_code;
 
 out:
+	if (user_data.handle_backend_data)
+		user_data.handle_backend_data(ec);
+
 	weston_compositor_destroy(ec);
 
 out_signals:
