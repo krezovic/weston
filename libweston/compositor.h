@@ -240,6 +240,11 @@ struct weston_output {
 			  uint16_t *b);
 
 	struct weston_timeline_object timeline;
+
+	bool initialized;
+	int scale;
+
+	void (*enable)(struct weston_output *output);
 };
 
 enum weston_pointer_motion_mask {
@@ -732,6 +737,9 @@ struct weston_backend {
 	void (*restore)(struct weston_compositor *compositor);
 };
 
+typedef void (*output_configure_handler_t)(struct wl_listener *listener,
+	      void *data);
+
 struct weston_compositor {
 	struct wl_signal destroy_signal;
 
@@ -752,6 +760,7 @@ struct weston_compositor {
 	struct wl_signal update_input_panel_signal;
 
 	struct wl_signal seat_created_signal;
+	struct wl_signal output_pending_signal;
 	struct wl_signal output_created_signal;
 	struct wl_signal output_destroyed_signal;
 	struct wl_signal output_moved_signal;
@@ -763,6 +772,7 @@ struct weston_compositor {
 	struct weston_layer fade_layer;
 	struct weston_layer cursor_layer;
 
+	struct wl_list pending_output_list;
 	struct wl_list output_list;
 	struct wl_list seat_list;
 	struct wl_list layer_list;
@@ -818,6 +828,9 @@ struct weston_compositor {
 	struct wl_global *pointer_constraints;
 
 	int exit_code;
+
+	output_configure_handler_t pending_output_handler;
+	struct wl_listener pending_output_listener;
 
 	void *user_data;
 	void (*exit)(struct weston_compositor *c);
@@ -1340,6 +1353,7 @@ struct weston_binding;
 typedef void (*weston_key_binding_handler_t)(struct weston_keyboard *keyboard,
 					     uint32_t time, uint32_t key,
 					     void *data);
+
 struct weston_binding *
 weston_compositor_add_key_binding(struct weston_compositor *compositor,
 				  uint32_t key,
@@ -1792,6 +1806,28 @@ weston_seat_set_keyboard_focus(struct weston_seat *seat,
 
 int
 weston_compositor_load_xwayland(struct weston_compositor *compositor);
+
+void
+weston_output_set_scale(struct weston_output *output,
+			int32_t scale);
+
+void
+weston_output_set_transform(struct weston_output *output,
+			    uint32_t transform);
+
+void
+weston_output_init_pending(struct weston_output *output,
+			   struct weston_compositor *compositor);
+
+void
+weston_output_enable(struct weston_output *output);
+
+void
+weston_pending_output_set_listener(struct weston_compositor *compositor,
+				   output_configure_handler_t listener);
+
+void
+weston_pending_output_coldplug(struct weston_compositor *compositor);
 
 #ifdef  __cplusplus
 }

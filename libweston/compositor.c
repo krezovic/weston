@@ -4100,12 +4100,18 @@ weston_output_destroy(struct weston_output *output)
 
 	output->destroying = 1;
 
+	wl_list_remove(&output->link);
+
+	if (!output->initialized) {
+		free(output->name);
+		return;
+	}
+
 	wl_event_source_remove(output->repaint_timer);
 
 	weston_presentation_feedback_discard_list(&output->feedback_list);
 
 	weston_compositor_reflow_outputs(output->compositor, output, output->width);
-	wl_list_remove(&output->link);
 
 	wl_list_for_each(view, &output->compositor->view_list, link) {
 		if (wl_list_empty(&output->compositor->output_list)) {
@@ -4322,6 +4328,8 @@ weston_output_init(struct weston_output *output, struct weston_compositor *c,
 	output->global =
 		wl_global_create(c->wl_display, &wl_output_interface, 2,
 				 output, bind_output);
+
+	output->initialized = true;
 }
 
 /** Adds an output to the compositor's output list and
@@ -4353,6 +4361,117 @@ weston_output_transform_coordinate(struct weston_output *output,
 
 	*x = p.f[0] / p.f[3];
 	*y = p.f[1] / p.f[3];
+}
+
+WL_EXPORT void
+weston_output_set_scale(struct weston_output *output,
+			int32_t scale)
+{
+	/* We can only set scale on an uninitialized output */
+	assert(!output->initialized);
+
+	/* We only want to set scale once */
+	assert(!output->scale);
+
+	output->scale = scale;
+}
+
+WL_EXPORT void
+weston_output_set_transform(struct weston_output *output,
+			    uint32_t transform)
+{
+	/* We can only set transform on an uninitialized output */
+	assert(!output->initialized);
+
+	/* We only want to set transform once */
+	assert(output->transform == UINT32_MAX);
+
+	output->transform = transform;
+}
+
+WL_EXPORT void
+weston_output_init_pending(struct weston_output *output,
+			   struct weston_compositor *compositor)
+{
+	output->compositor = compositor;
+	output->destroying = 0;
+
+	/* Add some (in)sane defaults which can be used
+	 * for checking if an output was properly configured
+	 */
+	output->mm_width = 0;
+	output->mm_height = 0;
+	output->scale = 0;
+	/* Can't use -1 on uint32_t and 0 is valid enum value */
+	output->transform = UINT32_MAX;
+
+	output->initialized = false;
+
+	wl_list_init(&output->link);
+
+	wl_list_insert(compositor->pending_output_list.prev, &output->link);
+	wl_signal_emit(&compositor->output_pending_signal, output);
+}
+
+WL_EXPORT void
+weston_output_enable(struct weston_output *output)
+{
+	struct weston_output *iterator;
+	int x = 0, y = 0;
+
+	iterator = container_of(output->compositor->output_list.prev,
+				struct weston_output, link);
+
+	if (!wl_list_empty(&output->compositor->output_list))
+		x = iterator->x + iterator->width;
+
+	/* Don't enable non-initialized output */
+	assert(output->initialized);
+
+	/* Make sure the width and height are configured */
+	assert(output->mm_width || output->mm_height);
+
+	/* Make sure the scale is set up */
+	assert(output->scale);
+
+	/* Make sure we have a transform set */
+	assert(output->transform != UINT32_MAX);
+
+	/* Remove it from pending output list */
+	wl_list_remove(&output->link);
+
+	/* TODO: Merge weston_output_init here. */
+	weston_output_init(output, output->compositor, x, y,
+			   output->mm_width, output->mm_height,
+			   output->transform, output->scale);
+
+	/* Enable the output (set up the crtc or create a
+	 * window representing the output, set up the
+	 * renderer, etc)
+	 */
+	output->enable(output);
+
+	weston_compositor_add_output(output->compositor, output);
+}
+
+WL_EXPORT void
+weston_pending_output_set_listener(struct weston_compositor *compositor,
+				   output_configure_handler_t listener)
+{
+	compositor->pending_output_listener.notify = listener;
+	wl_signal_add(&compositor->output_pending_signal,
+		      &compositor->pending_output_listener);
+}
+
+WL_EXPORT void
+weston_pending_output_coldplug(struct weston_compositor *compositor)
+{
+	struct weston_output *output, *next;
+
+	assert(compositor->pending_output_listener.notify);
+
+	wl_list_for_each_safe(output, next, &compositor->pending_output_list, link)
+		wl_signal_emit(&compositor->output_pending_signal, output);
 }
 
 static void
@@ -4695,6 +4814,7 @@ weston_compositor_create(struct wl_display *display, void *user_data)
 	wl_signal_init(&ec->hide_input_panel_signal);
 	wl_signal_init(&ec->update_input_panel_signal);
 	wl_signal_init(&ec->seat_created_signal);
+	wl_signal_init(&ec->output_pending_signal);
 	wl_signal_init(&ec->output_created_signal);
 	wl_signal_init(&ec->output_destroyed_signal);
 	wl_signal_init(&ec->output_moved_signal);
@@ -4730,6 +4850,7 @@ weston_compositor_create(struct wl_display *display, void *user_data)
 	wl_list_init(&ec->plane_list);
 	wl_list_init(&ec->layer_list);
 	wl_list_init(&ec->seat_list);
+	wl_list_init(&ec->pending_output_list);
 	wl_list_init(&ec->output_list);
 	wl_list_init(&ec->key_binding_list);
 	wl_list_init(&ec->modifier_binding_list);
@@ -4772,6 +4893,10 @@ weston_compositor_shutdown(struct weston_compositor *ec)
 
 	/* Destroy all outputs associated with this compositor */
 	wl_list_for_each_safe(output, next, &ec->output_list, link)
+		output->destroy(output);
+
+	/* Destroy all pending outputs associated with this compositor */
+	wl_list_for_each_safe(output, next, &ec->pending_output_list, link)
 		output->destroy(output);
 
 	if (ec->renderer)
