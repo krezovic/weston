@@ -4425,9 +4425,6 @@ weston_output_enable(struct weston_output *output)
 	if (!wl_list_empty(&output->compositor->output_list))
 		x = iterator->x + iterator->width;
 
-	/* Don't enable non-initialized output */
-	assert(output->initialized);
-
 	/* Make sure the width and height are configured */
 	assert(output->mm_width || output->mm_height);
 
