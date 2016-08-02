@@ -34,8 +34,10 @@ extern "C" {
 
 struct weston_compositor;
 struct weston_output;
+struct weston_drm_backend_output_config;
 
 #define WESTON_WINDOWED_OUTPUT_API_NAME "weston_windowed_output_api_v1"
+#define WESTON_DRM_OUTPUT_API_NAME "weston_drm_output_api_v1"
 
 struct weston_windowed_output_api {
 	int (*output_configure)(struct weston_output *output,
@@ -43,6 +45,11 @@ struct weston_windowed_output_api {
 
 	int (*output_create)(struct weston_compositor *compositor,
 			     const char *name);
+};
+
+struct weston_drm_output_api {
+	int (*output_configure)(struct weston_output *output,
+				struct weston_drm_backend_output_config *config);
 };
 
 static inline const struct weston_windowed_output_api *
@@ -53,6 +60,16 @@ weston_windowed_output_get_api(struct weston_compositor *compositor)
 				    sizeof(struct weston_windowed_output_api));
 
 	return (struct weston_windowed_output_api *)api;
+}
+
+static inline const struct weston_drm_output_api *
+weston_drm_output_get_api(struct weston_compositor *compositor)
+{
+	const void *api;
+	api = weston_plugin_api_get(compositor, WESTON_DRM_OUTPUT_API_NAME,
+				    sizeof(struct weston_drm_output_api));
+
+	return (struct weston_drm_output_api *)api;
 }
 
 #ifdef  __cplusplus
