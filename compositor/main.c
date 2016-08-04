@@ -62,6 +62,7 @@
 #include "compositor-fbdev.h"
 #include "compositor-x11.h"
 #include "compositor-wayland.h"
+#include "output-api.h"
 
 #define WINDOW_TITLE "Weston Compositor"
 
@@ -75,6 +76,13 @@ struct wet_compositor {
 
 	void *backend_data;
 	backend_data_handler_t handle_backend_data;
+};
+
+struct wet_output_config {
+	int width;
+	int height;
+	int32_t scale;
+	uint32_t transform;
 };
 
 static FILE *weston_logfile = NULL;
@@ -979,6 +987,112 @@ static void
 handle_exit(struct weston_compositor *c)
 {
 	wl_display_terminate(c->wl_display);
+}
+
+static void
+wet_output_set_scale(struct weston_output *output,
+		     struct weston_config_section *section,
+		     int32_t default_scale,
+		     int32_t parsed_scale)
+{
+	int32_t scale = default_scale;
+
+	if (section)
+		weston_config_section_get_int(section, "scale", &scale, default_scale);
+
+	if (parsed_scale)
+		scale = parsed_scale;
+
+	weston_output_set_scale(output, scale);
+}
+
+static void
+wet_output_set_transform(struct weston_output *output,
+			 struct weston_config_section *section,
+			 uint32_t default_transform)
+{
+	char *t;
+	uint32_t transform = default_transform;
+
+	if (section) {
+		weston_config_section_get_string(section,
+						 "transform", &t, "normal");
+
+		if (weston_parse_transform(t, &transform) < 0) {
+			weston_log("Invalid transform \"%s\" for output %s\n",
+				   t, output->name);
+			transform = default_transform;
+		}
+		free(t);
+	}
+
+	weston_output_set_transform(output, transform);
+}
+
+static int
+wet_configure_windowed_output_from_config(struct weston_output *output,
+					  struct wet_output_config *defaults,
+					  struct wet_output_config *parsed_options)
+{
+	const struct weston_windowed_output_api *api =
+		weston_windowed_output_get_api(output->compositor);
+
+	struct weston_config *wc = wet_get_config(output->compositor);
+	struct weston_config_section *section;
+	char *default_mode;
+
+	int width = defaults->width;
+	int height = defaults->height;
+	int32_t scale = defaults->scale;
+	int32_t parsed_scale = 0;
+	uint32_t transform = defaults->transform;
+
+	if (!api || !api->output_configure) {
+		weston_log("Cannot use weston_windowed_output_api.\n");
+		return -1;
+	}
+
+	section = weston_config_get_section(wc, "output", "name", output->name);
+
+	if (section) {
+		char *mode;
+
+		if (asprintf(&default_mode, "%dx%d", defaults->width, defaults->height) < 0) {
+			weston_log("Failed to get default configuration.\n");
+			return -1;
+		}
+
+		weston_config_section_get_string(section, "mode", &mode, default_mode);
+		if (sscanf(mode, "%dx%d", &width,
+			   &height) != 2) {
+			weston_log("Invalid mode \"%s\" for output %s. Using defaults.\n",
+				   mode, output->name);
+			free(mode);
+			width = defaults->width;
+			height = defaults->height;
+		}
+		free(mode);
+	}
+
+	if (parsed_options && parsed_options->width)
+		width = parsed_options->width;
+
+	if (parsed_options && parsed_options->height)
+		height = parsed_options->height;
+
+	if (parsed_options && parsed_options->scale)
+		parsed_scale = parsed_options->scale;
+
+	wet_output_set_scale(output, section, scale, parsed_scale);
+	wet_output_set_transform(output, section, transform);
+
+	if (api->output_configure(output, width, height) < 0) {
+		weston_log("Cannot configure output \"%s\" using weston_windowed_output_api.\n",
+			   output->name);
+		return -1;
+	}
+
+	return 0;
 }
 
 static enum weston_drm_backend_output_mode
