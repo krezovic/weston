@@ -65,8 +65,16 @@
 
 #define WINDOW_TITLE "Weston Compositor"
 
+typedef void (*backend_data_handler_t)(struct weston_compositor *ec);
+typedef void (*pending_output_handler_t)(struct wl_listener *listener, void *data);
+
 struct wet_compositor {
 	struct weston_config *config;
+
+	struct wl_listener pending_output_listener;
+
+	void *backend_data;
+	backend_data_handler_t handle_backend_data;
 };
 
 static FILE *weston_logfile = NULL;
@@ -422,6 +430,40 @@ static struct wet_compositor *
 to_wet_compositor(struct weston_compositor *compositor)
 {
 	return weston_compositor_get_user_data(compositor);
+}
+
+static void *
+wet_get_backend_data(struct weston_compositor *ec)
+{
+	struct wet_compositor *compositor = to_wet_compositor(ec);
+
+	return compositor->backend_data;
+}
+
+static void
+wet_set_backend_data(struct weston_compositor *ec, void *data)
+{
+	struct wet_compositor *compositor = to_wet_compositor(ec);
+
+	compositor->backend_data = data;
+}
+
+static void
+wet_set_backend_data_handler(struct weston_compositor *ec,
+			     backend_data_handler_t handler)
+{
+	struct wet_compositor *compositor = to_wet_compositor(ec);
+
+	compositor->handle_backend_data = handler;
+}
+
+static void
+wet_set_pending_output_handler(struct weston_compositor *ec,
+			       pending_output_handler_t handler)
+{
+	struct wet_compositor *compositor = to_wet_compositor(ec);
+
+	compositor->pending_output_listener.notify = handler;
 }
 
 WL_EXPORT struct weston_config *
@@ -1658,6 +1700,7 @@ int main(int argc, char *argv[])
 	if (load_configuration(&config, noconfig, config_file) < 0)
 		goto out_signals;
 	user_data.config = config;
+	user_data.handle_backend_data = NULL;
 
 	section = weston_config_get_section(config, "core", NULL, NULL);
 
@@ -1681,6 +1724,10 @@ int main(int argc, char *argv[])
 		weston_log("fatal: failed to create compositor backend\n");
 		goto out;
 	}
+
+	wl_signal_add(&ec->output_pending_signal, &user_data.pending_output_listener);
+
+	weston_pending_output_coldplug(ec);
 
 	catch_signals();
 	segv_compositor = ec;
@@ -1766,6 +1813,9 @@ int main(int argc, char *argv[])
 	ret = ec->exit_code;
 
 out:
+	if (user_data.handle_backend_data)
+		user_data.handle_backend_data(ec);
+
 	weston_compositor_destroy(ec);
 
 out_signals:
