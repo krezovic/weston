@@ -39,14 +39,8 @@ extern "C" {
 struct weston_headless_backend_config {
 	struct weston_backend_config base;
 
-	int width;
-	int height;
-
 	/** Whether to use the pixman renderer instead of the OpenGL ES renderer. */
 	int use_pixman;
-
-	uint32_t transform;
-	bool no_outputs;
 };
 
 #ifdef  __cplusplus
