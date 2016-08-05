@@ -2561,7 +2561,7 @@ create_output_for_connector(struct drm_backend *b,
 	output->destroy_pending = 0;
 	output->disable_pending = 0;
 
-	weston_output_init_pending(&output->base, b->compositor);
+	weston_output_init(&output->base, b->compositor);
 
 	return 0;
 }
