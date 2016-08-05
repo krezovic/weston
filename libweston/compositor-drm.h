@@ -29,6 +29,7 @@
 #define WESTON_COMPOSITOR_DRM_H
 
 #include "compositor.h"
+#include "plugin-registry.h"
 
 #ifdef  __cplusplus
 extern "C" {
@@ -51,8 +52,14 @@ enum weston_drm_backend_output_mode {
 	WESTON_DRM_BACKEND_OUTPUT_PREFERRED,
 };
 
-struct weston_drm_backend_output_config {
-	struct weston_backend_output_config base;
+#define WESTON_DRM_OUTPUT_API_NAME "weston_drm_output_api_v1"
+
+struct weston_drm_output_api {
+	/** The modeline to be used by the output. Refer to the documentation
+	 * of WESTON_DRM_BACKEND_OUTPUT_PREFERRED for details. */
+	int (*set_mode)(struct weston_output *output,
+			enum weston_drm_backend_output_mode mode,
+			const char *modeline);
 
 	/** The pixel format to be used by the output. Valid values are:
 	 * - NULL - The format set at backend creation time will be used;
@@ -60,14 +67,24 @@ struct weston_drm_backend_output_config {
 	 * - "rgb565"
 	 * - "xrgb2101010"
 	 */
-	char *gbm_format;
+	void (*set_gbm_format)(struct weston_output *output,
+			       const char *gbm_format);
+
 	/** The seat to be used by the output. Set to NULL to use the
 	 * default seat. */
-	char *seat;
-	/** The modeline to be used by the output. Refer to the documentation
-	 * of WESTON_DRM_BACKEND_OUTPUT_PREFERRED for details. */
-	char *modeline;
+	void (*set_seat)(struct weston_output *output,
+			 const char *seat);
 };
+
+static inline const struct weston_drm_output_api *
+weston_drm_output_get_api(struct weston_compositor *compositor)
+{
+	const void *api;
+	api = weston_plugin_api_get(compositor, WESTON_DRM_OUTPUT_API_NAME,
+				    sizeof(struct weston_drm_output_api));
+
+	return (const struct weston_drm_output_api *)api;
+}
 
 /** The backend configuration struct.
  *
@@ -108,17 +125,6 @@ struct weston_drm_backend_config {
 	 * it on backend destruction.
 	 */
 	char *gbm_format;
-
-	/** Callback used to configure the outputs.
-	 *
-	 * This function will be called by the backend when a new DRM
-	 * output needs to be configured.
-	 */
-	enum weston_drm_backend_output_mode
-		(*configure_output)(struct weston_compositor *compositor,
-				    bool use_current_mode,
-				    const char *name,
-				    struct weston_drm_backend_output_config *output_config);
 
 	/** Callback used to configure input devices.
 	 *
