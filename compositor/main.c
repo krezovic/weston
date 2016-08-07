@@ -1047,6 +1047,8 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 	int32_t parsed_scale = 0;
 	uint32_t transform = defaults->transform;
 
+	int x = 0, y = 0;
+
 	if (!api || !api->output_configure) {
 		weston_log("Cannot use weston_windowed_output_api.\n");
 		return -1;
@@ -1082,6 +1084,10 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 
 	if (parsed_options && parsed_options->scale)
 		parsed_scale = parsed_options->scale;
+
+	x = weston_compositor_get_free_x_coordinate(output->compositor, NULL);
+	weston_output_set_x_coordinate(output, x);
+	weston_output_set_y_coordinate(output, y);
 
 	wet_output_set_scale(output, section, scale, parsed_scale);
 	wet_output_set_transform(output, section, transform);
@@ -1129,6 +1135,8 @@ drm_backend_output_configure(struct wl_listener *listener, void *data)
 	enum weston_drm_backend_output_mode mode =
 		WESTON_DRM_BACKEND_OUTPUT_PREFERRED;
 
+	int x = 0, y = 0;
+
 	char *s;
 	char *modeline = NULL;
 	char *gbm_format = NULL;
@@ -1159,6 +1167,10 @@ drm_backend_output_configure(struct wl_listener *listener, void *data)
 		return;
 	}
 	free(modeline);
+
+	x = weston_compositor_get_free_x_coordinate(output->compositor, NULL);
+	weston_output_set_x_coordinate(output, x);
+	weston_output_set_y_coordinate(output, y);
 
 	wet_output_set_scale(output, section, 1, 0);
 	wet_output_set_transform(output, section, WL_OUTPUT_TRANSFORM_NORMAL);
@@ -1234,6 +1246,8 @@ headless_backend_output_configure(struct wl_listener *listener, void *data)
 	int height = 640;
 	uint32_t transform = WL_OUTPUT_TRANSFORM_NORMAL;
 
+	int x = 0, y = 0;
+
 	if (!api || !api->output_configure) {
 		weston_log("Cannot use weston_windowed_output_api.\n");
 		return;
@@ -1247,6 +1261,10 @@ headless_backend_output_configure(struct wl_listener *listener, void *data)
 
 	if (parsed_options && parsed_options->transform)
 		transform = parsed_options->transform;
+
+	x = weston_compositor_get_free_x_coordinate(output->compositor, NULL);
+	weston_output_set_x_coordinate(output, x);
+	weston_output_set_y_coordinate(output, y);
 
 	weston_output_set_scale(output, 1);
 	weston_output_set_transform(output, transform);
@@ -1348,6 +1366,9 @@ rdp_backend_output_configure(struct wl_listener *listener, void *data)
 	if (parsed_options && parsed_options->height)
 		height = parsed_options->height;
 
+	weston_output_set_x_coordinate(output, 0);
+	weston_output_set_y_coordinate(output, 0);
+
 	weston_output_set_scale(output, 1);
 	weston_output_set_transform(output, WL_OUTPUT_TRANSFORM_NORMAL);
 
@@ -1431,6 +1452,9 @@ fbdev_backend_output_configure(struct wl_listener *listener, void *data)
 	struct weston_config_section *section;
 
 	section = weston_config_get_section(wc, "output", "name", "fbdev");
+
+	weston_output_set_x_coordinate(output, 0);
+	weston_output_set_y_coordinate(output, 0);
 
 	wet_output_set_transform(output, section, WL_OUTPUT_TRANSFORM_NORMAL);
 	weston_output_set_scale(output, 1);
@@ -1621,10 +1645,16 @@ wayland_backend_output_configure_hotplug(struct wl_listener *listener, void *dat
 	const struct weston_wayland_output_api *api =
 		weston_wayland_output_get_api(output->compositor);
 
+	int x = 0, y = 0;
+
 	if (!api || !api->output_configure) {
 		weston_log("Cannot use weston_wayland_output_api.\n");
 		return;
 	}
+
+	x = weston_compositor_get_free_x_coordinate(output->compositor, NULL);
+	weston_output_set_x_coordinate(output, x);
+	weston_output_set_y_coordinate(output, y);
 
 	weston_output_set_scale(output, 1);
 	weston_output_set_transform(output, WL_OUTPUT_TRANSFORM_NORMAL);
