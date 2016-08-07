@@ -4336,6 +4336,8 @@ weston_output_init(struct weston_output *output,
 	 */
 	output->mm_width = 0;
 	output->mm_height = 0;
+	output->x = -1;
+	output->y = -1;
 	output->scale = 0;
 	/* Can't use -1 on uint32_t and 0 is valid enum value */
 	output->transform = UINT32_MAX;
@@ -4383,20 +4385,14 @@ WL_EXPORT int
 weston_output_enable(struct weston_output *output)
 {
 	struct weston_compositor *c = output->compositor;
-	struct weston_output *iterator;
-	int x = 0, y = 0;
 	struct wl_event_loop *loop;
 
 	assert(output->enable);
 
-	iterator = container_of(c->output_list.prev,
-				struct weston_output, link);
-
-	if (!wl_list_empty(&c->output_list))
-		x = iterator->x + iterator->width;
-
 	/* Make sure the width and height are configured */
 	assert(output->mm_width && output->mm_height);
+
+	assert(output->x != -1 && output->y != -1);
 
 	/* Make sure the scale is set up */
 	assert(output->scale);
@@ -4410,15 +4406,13 @@ weston_output_enable(struct weston_output *output)
 	/* Verify we haven't reached the limit of 32 available output IDs */
 	assert(ffs(~c->output_id_pool) > 0);
 
-	output->x = x;
-	output->y = y;
 	output->dirty = 1;
 	output->original_scale = output->scale;
 
 	weston_output_transform_scale_init(output, output->transform, output->scale);
 	weston_output_init_zoom(output);
 
-	weston_output_init_geometry(output, x, y);
+	weston_output_init_geometry(output, output->x, output->y);
 	weston_output_damage(output);
 
 	wl_signal_init(&output->frame_signal);
@@ -4564,6 +4558,80 @@ weston_output_destroy(struct weston_output *output)
 	wl_list_remove(&output->link);
 
 	free(output->name);
+}
+
+WL_EXPORT void
+weston_output_set_x_coordinate(struct weston_output *output, int x)
+{
+	assert(!output->initialized);
+
+	output->x = x;
+}
+
+WL_EXPORT void
+weston_output_set_y_coordinate(struct weston_output *output, int y)
+{
+	assert(!output->initialized);
+
+	output->y = y;
+}
+
+WL_EXPORT struct weston_output *
+weston_compositor_get_output_from_coordinates(struct weston_compositor *compositor, int x, int y)
+{
+	struct weston_output *iterator, *next;
+
+	if (wl_list_empty(&compositor->output_list))
+		return NULL;
+
+	wl_list_for_each_safe(iterator, next, &compositor->output_list, link)
+		if (iterator->x == x && iterator->y == y)
+			return iterator;
+
+	return NULL;
+}
+
+WL_EXPORT struct weston_output *
+weston_compositor_get_output_from_name(struct weston_compositor *compositor, const char *name)
+{
+	struct weston_output *iterator, *next;
+
+	if (wl_list_empty(&compositor->output_list))
+		return NULL;
+
+	wl_list_for_each_safe(iterator, next, &compositor->output_list, link)
+		if (iterator->name && !strcmp(iterator->name, name))
+			return iterator;
+
+	return NULL;
+}
+
+WL_EXPORT int
+weston_compositor_get_free_x_coordinate(struct weston_compositor *compositor,
+					struct weston_output *output)
+{
+	struct weston_output *iterator, *next;
+	int x = 0;
+
+	if (wl_list_empty(&compositor->output_list))
+		return 0;
+
+	if (output) {
+		x = output->x + output->width;
+
+		iterator = weston_compositor_get_output_from_coordinates(compositor, x, output->y);
+
+		if (iterator)
+			return -1;
+
+		return x;
+	}
+
+	wl_list_for_each_safe(iterator, next, &compositor->output_list, link)
+		if (iterator->y == 0)
+			x += iterator->width;
+
+	return x;
 }
 
 static void

@@ -1807,6 +1807,24 @@ weston_output_disable(struct weston_output *output);
 void
 weston_pending_output_coldplug(struct weston_compositor *compositor);
 
+void
+weston_output_set_x_coordinate(struct weston_output *output, int x);
+
+void
+weston_output_set_y_coordinate(struct weston_output *output, int y);
+
+struct weston_output *
+weston_compositor_get_output_from_name(struct weston_compositor *compositor,
+				       const char *name);
+
+int
+weston_compositor_get_free_x_coordinate(struct weston_compositor *compositor,
+					struct weston_output *output);
+
+struct weston_output *
+weston_compositor_get_output_from_coordinates(struct weston_compositor *compositor,
+					      int x, int y);
+
 #ifdef  __cplusplus
 }
 #endif
