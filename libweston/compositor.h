@@ -683,20 +683,6 @@ enum weston_capability {
 	WESTON_CAP_VIEW_CLIP_MASK		= 0x0010,
 };
 
-/* Configuration struct for an output.
- *
- * This struct is used to pass the configuration for an output
- * to the compositor backend when creating a new output.
- * The backend can subclass this struct to handle backend
- * specific data.
- */
-struct weston_backend_output_config {
-	uint32_t transform;
-	uint32_t width;
-	uint32_t height;
-	uint32_t scale;
-};
-
 /* Configuration struct for a backend.
  *
  * This struct carries the configuration for a backend, and it's
@@ -1591,9 +1577,7 @@ void
 weston_output_update_matrix(struct weston_output *output);
 void
 weston_output_move(struct weston_output *output, int x, int y);
-void
-weston_output_init(struct weston_output *output, struct weston_compositor *c,
-		   int x, int y, int width, int height, uint32_t transform, int32_t scale);
+
 void
 weston_compositor_add_output(struct weston_compositor *compositor,
                              struct weston_output *output);
@@ -1810,8 +1794,8 @@ weston_output_set_transform(struct weston_output *output,
 			    uint32_t transform);
 
 void
-weston_output_init_pending(struct weston_output *output,
-			   struct weston_compositor *compositor);
+weston_output_init(struct weston_output *output,
+		   struct weston_compositor *compositor);
 
 int
 weston_output_enable(struct weston_output *output);
