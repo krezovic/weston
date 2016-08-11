@@ -27,6 +27,7 @@
 #define WESTON_COMPOSITOR_WAYLAND_H
 
 #include "compositor.h"
+#include "plugin-registry.h"
 
 #ifdef  __cplusplus
 extern "C" {
@@ -36,13 +37,22 @@ extern "C" {
 
 #define WESTON_WAYLAND_BACKEND_CONFIG_VERSION 1
 
-struct weston_wayland_backend_output_config {
-	int width;
-	int height;
-	char *name;
-	uint32_t transform;
-	int32_t scale;
+
+#define WESTON_WAYLAND_OUTPUT_API_NAME "weston_wayland_output_api_v1"
+
+struct weston_wayland_output_api {
+	int (*output_configure)(struct weston_output *output);
 };
+
+static inline const struct weston_wayland_output_api *
+weston_wayland_output_get_api(struct weston_compositor *compositor)
+{
+	const void *api;
+	api = weston_plugin_api_get(compositor, WESTON_WAYLAND_OUTPUT_API_NAME,
+				    sizeof(struct weston_wayland_output_api));
+
+	return (const struct weston_wayland_output_api *)api;
+}
 
 struct weston_wayland_backend_config {
 	struct weston_backend_config base;
