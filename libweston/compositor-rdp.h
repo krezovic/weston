@@ -31,13 +31,29 @@ extern "C" {
 #endif
 
 #include "compositor.h"
+#include "plugin-registry.h"
+
+#define WESTON_RDP_OUTPUT_API_NAME "weston_rdp_output_api_v1"
+
+struct weston_rdp_output_api {
+	int (*output_configure)(struct weston_output *output,
+				int width, int height);
+};
+
+static inline const struct weston_rdp_output_api *
+weston_rdp_output_get_api(struct weston_compositor *compositor)
+{
+	const void *api;
+	api = weston_plugin_api_get(compositor, WESTON_RDP_OUTPUT_API_NAME,
+				    sizeof(struct weston_rdp_output_api));
+
+	return (const struct weston_rdp_output_api *)api;
+}
 
 #define WESTON_RDP_BACKEND_CONFIG_VERSION 1
 
 struct weston_rdp_backend_config {
 	struct weston_backend_config base;
-	int width;
-	int height;
 	char *bind_address;
 	int port;
 	char *rdp_key;
