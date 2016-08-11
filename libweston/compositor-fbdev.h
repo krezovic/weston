@@ -44,8 +44,6 @@ struct weston_fbdev_backend_config {
 	int tty;
 	char *device;
 
-	uint32_t output_transform;
-
 	/** Callback used to configure input devices.
 	 *
 	 * This function will be called by the backend when a new input device
