@@ -1208,31 +1208,51 @@ load_drm_backend(struct weston_compositor *c,
 	return ret;
 }
 
+static void
+headless_backend_output_configure(struct wl_listener *listener, void *data)
+{
+	struct weston_output *output = data;
+	struct wet_output_config defaults = {
+		.width = 1024,
+		.height = 640,
+		.scale = 1,
+		.transform = WL_OUTPUT_TRANSFORM_NORMAL
+	};
+
+	if (wet_configure_windowed_output_from_config(output, &defaults) < 0)
+		weston_log("Cannot configure output \"%s\".\n",
+			   output->name ? output->name : "unnamed");
+}
+
 static int
 load_headless_backend(struct weston_compositor *c,
 		      int *argc, char **argv, struct weston_config *wc)
 {
+	const struct weston_windowed_output_api *api;
 	struct weston_headless_backend_config config = {{ 0, }};
+	int no_outputs = 0;
 	int ret = 0;
 	char *transform = NULL;
 
-	config.width = 1024;
-	config.height = 640;
+	struct wet_output_config *parsed_options = wet_init_parsed_options(c);
+	if (!parsed_options)
+		return -1;
 
 	const struct weston_option options[] = {
-		{ WESTON_OPTION_INTEGER, "width", 0, &config.width },
-		{ WESTON_OPTION_INTEGER, "height", 0, &config.height },
+		{ WESTON_OPTION_INTEGER, "width", 0, &parsed_options->width },
+		{ WESTON_OPTION_INTEGER, "height", 0, &parsed_options->height },
 		{ WESTON_OPTION_BOOLEAN, "use-pixman", 0, &config.use_pixman },
 		{ WESTON_OPTION_STRING, "transform", 0, &transform },
-		{ WESTON_OPTION_BOOLEAN, "no-outputs", 0, &config.no_outputs },
+		{ WESTON_OPTION_BOOLEAN, "no-outputs", 0, &no_outputs },
 	};
 
 	parse_options(options, ARRAY_LENGTH(options), argc, argv);
 
-	config.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 	if (transform) {
-		if (weston_parse_transform(transform, &config.transform) < 0)
+		if (weston_parse_transform(transform, &parsed_options->transform) < 0) {
 			weston_log("Invalid transform \"%s\"\n", transform);
+			parsed_options->transform = UINT32_MAX;
+		}
 		free(transform);
 	}
 
@@ -1242,6 +1262,23 @@ load_headless_backend(struct weston_compositor *c,
 	/* load the actual wayland backend and configure it */
 	ret = weston_compositor_load_backend(c, WESTON_BACKEND_HEADLESS,
 					     &config.base);
+
+	if (ret < 0)
+		return ret;
+
+	wet_set_pending_output_handler(c, headless_backend_output_configure);
+
+	if (!no_outputs) {
+		api = weston_windowed_output_get_api(c);
+
+		if (!api) {
+			weston_log("Cannot use weston_windowed_output_api.\n");
+			return -1;
+		}
+
+		if (api->output_create(c, "headless") < 0)
+			return -1;
+	}
 
 	return ret;
 }
