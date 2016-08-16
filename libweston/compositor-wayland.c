@@ -1127,7 +1127,7 @@ wayland_output_create(struct weston_compositor *compositor, const char *name)
 
 	output->base.name = name ? strdup(name) : NULL;
 
-	weston_output_init_pending(&output->base, compositor);
+	weston_output_init(&output->base, compositor);
 
 	return 0;
 }
@@ -1226,7 +1226,7 @@ wayland_output_create_for_parent_output(struct wayland_backend *b,
 	output->user_data = poutput;
 	output->base.name = NULL;
 
-	weston_output_init_pending(&output->base, b->compositor);
+	weston_output_init(&output->base, b->compositor);
 
 	return 0;
 }

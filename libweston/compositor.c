@@ -4421,8 +4421,8 @@ weston_output_set_transform(struct weston_output *output,
  * disable before it returns.
  */
 WL_EXPORT void
-weston_output_init_pending(struct weston_output *output,
-			   struct weston_compositor *compositor)
+weston_output_init(struct weston_output *output,
+		   struct weston_compositor *compositor)
 {
 	output->compositor = compositor;
 	output->destroying = 0;
@@ -4566,7 +4566,7 @@ weston_output_enable(struct weston_output *output)
  *
  * \param output The weston_output object that needs to be disabled.
  *
- * See weston_output_init_pending() for more information on the
+ * See weston_output_init() for more information on the
  * state output is returned to.
  *
  * Calls a backend specific function to disable an output, in case
