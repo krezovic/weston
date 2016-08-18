@@ -36,14 +36,6 @@ extern "C" {
 
 #define WESTON_WAYLAND_BACKEND_CONFIG_VERSION 1
 
-struct weston_wayland_backend_output_config {
-	int width;
-	int height;
-	char *name;
-	uint32_t transform;
-	int32_t scale;
-};
-
 struct weston_wayland_backend_config {
 	struct weston_backend_config base;
 	int use_pixman;
