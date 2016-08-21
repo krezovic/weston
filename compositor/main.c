@@ -1304,15 +1304,19 @@ drm_backend_output_configure(struct wl_listener *listener, void *data)
 {
 	struct weston_output *output = data;
 	struct weston_config *wc = wet_get_config(output->compositor);
+	struct wet_output *wet_output = wet_output_create(output);
 	struct weston_config_section *section;
 	const struct weston_drm_output_api *api = weston_drm_output_get_api(output->compositor);
 	enum weston_drm_backend_output_mode mode =
 		WESTON_DRM_BACKEND_OUTPUT_PREFERRED;
 
 	char *s;
+	char *out;
 	char *modeline = NULL;
 	char *gbm_format = NULL;
 	char *seat = NULL;
+
+	assert(wet_output);
 
 	if (!api) {
 		weston_log("Cannot use weston_drm_output_api.\n");
@@ -1343,6 +1347,18 @@ drm_backend_output_configure(struct wl_listener *listener, void *data)
 
 	wet_output_set_scale(output, section, 1, 0);
 	wet_output_set_transform(output, section, WL_OUTPUT_TRANSFORM_NORMAL, UINT32_MAX);
+
+	weston_config_section_get_string(section, "left-of", &out, NULL);
+	wet_output->right_name = out ? strdup(out) : NULL;
+	free(out);
+
+	weston_config_section_get_string(section, "right-of", &out, NULL);
+	wet_output->left_name = out ? strdup(out) : NULL;
+	free(out);
+
+	weston_output_transform_scale_init(output, output->transform, output->scale);
+
+	wet_output_apply_position(wet_output);
 
 	weston_config_section_get_string(section,
 					 "gbm-format", &gbm_format, NULL);
@@ -1502,6 +1518,10 @@ rdp_backend_output_configure(struct wl_listener *listener, void *data)
 		return;
 	}
 
+	weston_output_transform_scale_init(output, output->transform, output->scale);
+
+	weston_output_set_position(output, 0, 0);
+
 	weston_output_enable(output);
 }
 
@@ -1575,6 +1595,10 @@ fbdev_backend_output_configure(struct wl_listener *listener, void *data)
 
 	wet_output_set_transform(output, section, WL_OUTPUT_TRANSFORM_NORMAL, UINT32_MAX);
 	weston_output_set_scale(output, 1);
+
+	weston_output_transform_scale_init(output, output->transform, output->scale);
+
+	weston_output_set_position(output, 0, 0);
 
 	weston_output_enable(output);
 }
@@ -1725,6 +1749,13 @@ static void
 wayland_backend_output_configure_hotplug(struct wl_listener *listener, void *data)
 {
 	struct weston_output *output = data;
+	struct wet_output *wet_output = wet_output_create(output);
+
+	assert(wet_output);
+
+	weston_output_transform_scale_init(output, output->transform, output->scale);
+
+	wet_output_apply_position(wet_output);
 
 	/* This backend has all values hardcoded, so nothing can be configured here */
 	weston_output_enable(output);
