@@ -74,10 +74,22 @@ struct wet_output_config {
 	uint32_t transform;
 };
 
+struct wet_output {
+	struct weston_output *output;
+	struct wl_listener output_destroy_listener;
+	struct wl_list link;
+
+	char *left_name;
+	char *right_name;
+
+	bool position_set;
+};
+
 struct wet_compositor {
 	struct weston_config *config;
 	struct wet_output_config *parsed_options;
 	struct wl_listener pending_output_listener;
+	struct wl_list output_layout_list;
 };
 
 static FILE *weston_logfile = NULL;
@@ -474,6 +486,166 @@ wet_get_config(struct weston_compositor *ec)
 	struct wet_compositor *compositor = to_wet_compositor(ec);
 
 	return compositor->config;
+}
+
+
+static void
+wet_output_destroy(struct wet_output *output)
+{
+	wl_list_remove(&output->output_destroy_listener.link);
+	wl_list_remove(&output->link);
+
+	free(output->left_name);
+	free(output->right_name);
+
+	free(output);
+}
+
+static void
+handle_output_destroy(struct wl_listener *listener, void *data)
+{
+	struct wet_output *output = container_of(listener,
+		struct wet_output, output_destroy_listener);
+
+	wet_output_destroy(output);
+}
+
+static struct wet_output *
+wet_output_create(struct weston_output *output)
+{
+	struct wet_compositor *compositor = to_wet_compositor(output->compositor);
+	struct wet_output *out;
+
+	out = zalloc(sizeof *out);
+	if (!out)
+		return NULL;
+
+	out->output = output;
+	out->position_set = false;
+
+	out->left_name = NULL;
+	out->right_name = NULL;
+
+	out->output_destroy_listener.notify = handle_output_destroy;
+	wl_signal_add(&output->destroy_signal, &out->output_destroy_listener);
+
+	wl_list_insert(compositor->output_layout_list.prev, &out->link);
+
+	return out;
+}
+
+static struct wet_output *
+wet_output_from_name(struct wet_compositor *compositor, const char *name)
+{
+	struct wet_output *output, *next;
+
+	if (wl_list_empty(&compositor->output_layout_list))
+		return NULL;
+
+	wl_list_for_each_safe(output, next, &compositor->output_layout_list, link) {
+		if (output->output->name && !strcmp(output->output->name, name))
+			return output;
+	}
+
+	return NULL;
+}
+
+static void
+wet_output_set_position(struct wet_output *output, int x, int y)
+{
+	struct weston_compositor *ec = output->output->compositor;
+	struct weston_output *iterator, *next;
+
+	if (!wl_list_empty(&ec->output_list)) {
+		wl_list_for_each_safe(iterator, next, &ec->output_list, link) {
+			if (y == iterator->y && x <= iterator->x)
+				weston_output_move(iterator, iterator->x + output->output->width, y);
+		}
+	}
+
+	weston_output_set_position(output->output, x, y);
+	output->position_set = true;
+}
+
+static void
+wet_output_set_position_from_existing_output(struct wet_output *output, struct wet_compositor *compositor)
+{
+	struct wet_output *iterator, *next;
+	int x = 0, y = 0;
+
+	if (wl_list_empty(&compositor->output_layout_list))
+		return;
+
+	wl_list_for_each_safe(iterator, next, &compositor->output_layout_list, link) {
+		if (iterator->right_name && !strcmp(iterator->right_name, output->output->name)
+		    && !output->left_name) {
+			output->left_name = strdup(iterator->output->name);
+			x = iterator->output->x + iterator->output->width;
+			y = iterator->output->y;
+
+			wet_output_set_position(output, x, y);
+		}
+
+		if (iterator->left_name && !strcmp(iterator->left_name, output->output->name)
+		    && !output->right_name) {
+			output->right_name = strdup(iterator->output->name);
+			x = iterator->output->x;
+			y = iterator->output->y;
+
+			wet_output_set_position(output, x, y);
+		}
+	}
+}
+
+static void
+wet_output_apply_position(struct wet_output *output)
+{
+	struct weston_compositor *ec = output->output->compositor;
+	struct wet_compositor *compositor = to_wet_compositor(ec);
+	struct weston_output *iterator, *next;
+	struct wet_output *out;
+	int x = 0, y = 0;
+
+	if (output->right_name) {
+		out = wet_output_from_name(compositor, output->right_name);
+		if (out && (!out->left_name || !strcmp(out->left_name, output->right_name))) {
+			x = out->output->x;
+			y = out->output->y;
+
+			wet_output_set_position(output, x, y);
+		}
+
+		/* Can't be right of and left of the same output */
+		if (output->left_name && !strcmp(output->left_name, output->right_name)) {
+			free(output->left_name);
+			output->left_name = NULL;
+		}
+	}
+
+	if (output->left_name) {
+		out = wet_output_from_name(compositor, output->left_name);
+		if (out && (!out->right_name || !strcmp(out->right_name, output->left_name))) {
+			x = out->output->x + out->output->width;
+			y = out->output->y;
+
+			wet_output_set_position(output, x, y);
+		}
+	}
+
+	if (!output->position_set)
+		wet_output_set_position_from_existing_output(output, compositor);
+
+	if (!wl_list_empty(&ec->output_list) && !output->position_set) {
+		wl_list_for_each_safe(iterator, next, &ec->output_list, link) {
+			if (iterator->y == 0)
+				x += iterator->width;
+		}
+
+		weston_output_set_position(output->output, x, y);
+	}
+	else if (!output->position_set) {
+		weston_output_set_position(output->output, 0, 0);
+	}
 }
 
 static const char xdg_error_message[] =
@@ -1041,10 +1213,12 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 	struct weston_config_section *section = NULL;
 	struct wet_compositor *compositor = to_wet_compositor(output->compositor);
 	struct wet_output_config *parsed_options = compositor->parsed_options;
+	struct wet_output *wet_output = wet_output_create(output);
 	int width = defaults->width;
 	int height = defaults->height;
 
 	assert(parsed_options);
+	assert(wet_output);
 
 	if (!api) {
 		weston_log("Cannot use weston_windowed_output_api.\n");
@@ -1055,6 +1229,7 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 
 	if (section) {
 		char *mode;
+		char *out;
 
 		weston_config_section_get_string(section, "mode", &mode, NULL);
 		if (!mode || sscanf(mode, "%dx%d", &width,
@@ -1065,6 +1240,15 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 			height = defaults->height;
 		}
 		free(mode);
+
+		weston_config_section_get_string(section, "left-of", &out, NULL);
+		wet_output->right_name = out ? strdup(out) : NULL;
+		free(out);
+
+		weston_config_section_get_string(section, "right-of", &out, NULL);
+		wet_output->left_name = out ? strdup(out) : NULL;
+		free(out);
+
 	}
 
 	if (parsed_options->width)
@@ -1081,6 +1265,10 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 			   output->name);
 		return -1;
 	}
+
+	weston_output_transform_scale_init(output, output->transform, output->scale);
+
+	wet_output_apply_position(wet_output);
 
 	weston_output_enable(output);
 
@@ -1813,6 +2001,7 @@ int main(int argc, char *argv[])
 		goto out_signals;
 	user_data.config = config;
 	user_data.parsed_options = NULL;
+	wl_list_init(&user_data.output_layout_list);
 
 	section = weston_config_get_section(config, "core", NULL, NULL);
 

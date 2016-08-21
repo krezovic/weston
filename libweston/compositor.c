@@ -66,7 +66,7 @@
 
 #define DEFAULT_REPAINT_WINDOW 7 /* milliseconds */
 
-static void
+void
 weston_output_transform_scale_init(struct weston_output *output,
 				   uint32_t transform, uint32_t scale);
 
@@ -4203,7 +4203,7 @@ weston_output_update_matrix(struct weston_output *output)
 	weston_matrix_invert(&output->inverse_matrix, &output->matrix);
 }
 
-static void
+WL_EXPORT void
 weston_output_transform_scale_init(struct weston_output *output, uint32_t transform, uint32_t scale)
 {
 	output->transform = transform;
@@ -4408,6 +4408,13 @@ weston_output_set_transform(struct weston_output *output,
 	output->transform = transform;
 }
 
+WL_EXPORT void
+weston_output_set_position(struct weston_output *output, int x, int y)
+{
+	output->x = x;
+	output->y = y;
+}
+
 /** Initializes a weston_output object with enough data so
  ** an output can be configured.
  *
@@ -4427,6 +4434,7 @@ weston_output_init(struct weston_output *output,
 	/* Backends must set output->name */
 	assert(output->name);
 
+	wl_signal_init(&output->destroy_signal);
 	wl_list_init(&output->link);
 
 	output->enabled = false;
@@ -4436,6 +4444,8 @@ weston_output_init(struct weston_output *output,
 	 */
 	output->mm_width = 0;
 	output->mm_height = 0;
+	output->x = -1;
+	output->y = -1;
 	output->scale = 0;
 	/* Can't use -1 on uint32_t and 0 is valid enum value */
 	output->transform = UINT32_MAX;
@@ -4493,17 +4503,11 @@ WL_EXPORT int
 weston_output_enable(struct weston_output *output)
 {
 	struct weston_compositor *c = output->compositor;
-	struct weston_output *iterator;
 	struct wl_event_loop *loop;
-	int x = 0, y = 0;
 
 	assert(output->enable);
 
-	iterator = container_of(c->output_list.prev,
-				struct weston_output, link);
-
-	if (!wl_list_empty(&c->output_list))
-		x = iterator->x + iterator->width;
+	assert(output->x >= 0 && output->y >= 0);
 
 	/* Make sure the scale is set up */
 	assert(output->scale);
@@ -4517,19 +4521,16 @@ weston_output_enable(struct weston_output *output)
 	/* Verify we haven't reached the limit of 32 available output IDs */
 	assert(ffs(~c->output_id_pool) > 0);
 
-	output->x = x;
-	output->y = y;
 	output->dirty = 1;
 	output->original_scale = output->scale;
 
-	weston_output_transform_scale_init(output, output->transform, output->scale);
+	//weston_output_transform_scale_init(output, output->transform, output->scale);
 	weston_output_init_zoom(output);
 
-	weston_output_init_geometry(output, x, y);
+	weston_output_init_geometry(output, output->x, output->y);
 	weston_output_damage(output);
 
 	wl_signal_init(&output->frame_signal);
-	wl_signal_init(&output->destroy_signal);
 	wl_list_init(&output->animation_list);
 	wl_list_init(&output->resource_list);
 	wl_list_init(&output->feedback_list);

@@ -1821,6 +1821,9 @@ weston_output_set_transform(struct weston_output *output,
 			    uint32_t transform);
 
 void
+weston_output_set_position(struct weston_output *output, int x, int y);
+
+void
 weston_output_init(struct weston_output *output,
 		   struct weston_compositor *compositor);
 
@@ -1836,6 +1839,10 @@ weston_output_disable(struct weston_output *output);
 
 void
 weston_pending_output_coldplug(struct weston_compositor *compositor);
+
+void
+weston_output_transform_scale_init(struct weston_output *output,
+				   uint32_t transform, uint32_t scale);
 
 #ifdef  __cplusplus
 }
