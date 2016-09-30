@@ -78,6 +78,18 @@ struct wet_compositor {
 	struct weston_config *config;
 	struct wet_output_config *parsed_options;
 	struct wl_listener pending_output_listener;
+	struct wl_list output_layout_list;
+};
+
+struct wet_output {
+	struct weston_output *output;
+	struct wl_listener output_destroy_listener;
+	struct wl_list link;
+
+	char *left_output_name;
+	char *right_output_name;
+
+	bool position_set;
 };
 
 static FILE *weston_logfile = NULL;
@@ -490,6 +502,51 @@ wet_get_config(struct weston_compositor *ec)
 	struct wet_compositor *compositor = to_wet_compositor(ec);
 
 	return compositor->config;
+}
+
+static void
+wet_output_destroy(struct wet_output *output)
+{
+	wl_list_remove(&output->output_destroy_listener.link);
+	wl_list_remove(&output->link);
+
+	free(output->left_output_name);
+	free(output->right_output_name);
+
+	free(output);
+}
+
+static void
+handle_output_destroy(struct wl_listener *listener, void *data)
+{
+	struct wet_output *output = container_of(listener,
+		struct wet_output, output_destroy_listener);
+
+	wet_output_destroy(output);
+}
+
+static struct wet_output *
+wet_output_create(struct weston_output *output)
+{
+	struct wet_compositor *compositor = to_wet_compositor(output->compositor);
+	struct wet_output *out;
+
+	out = zalloc(sizeof *out);
+	if (!out)
+		return NULL;
+
+	out->output = output;
+	out->position_set = false;
+
+	out->left_output_name = NULL;
+	out->right_output_name = NULL;
+
+	out->output_destroy_listener.notify = handle_output_destroy;
+	wl_signal_add(&output->destroy_signal, &out->output_destroy_listener);
+
+	wl_list_insert(compositor->output_layout_list.prev, &out->link);
+
+	return out;
 }
 
 static const char xdg_error_message[] =
@@ -1057,10 +1114,12 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 	struct weston_config_section *section = NULL;
 	struct wet_compositor *compositor = to_wet_compositor(output->compositor);
 	struct wet_output_config *parsed_options = compositor->parsed_options;
+	struct wet_output *wet_output = wet_output_create(output);
 	int width = defaults->width;
 	int height = defaults->height;
 
 	assert(parsed_options);
+	assert(wet_output);
 
 	if (!api) {
 		weston_log("Cannot use weston_windowed_output_api.\n");
@@ -1071,6 +1130,7 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 
 	if (section) {
 		char *mode;
+		char *out;
 
 		weston_config_section_get_string(section, "mode", &mode, NULL);
 		if (!mode || sscanf(mode, "%dx%d", &width,
@@ -1081,6 +1141,14 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 			height = defaults->height;
 		}
 		free(mode);
+
+		weston_config_section_get_string(section, "left-of", &out, NULL);
+		wet_output->right_output_name = out ? strdup(out) : NULL;
+		free(out);
+
+		weston_config_section_get_string(section, "right-of", &out, NULL);
+		wet_output->left_output_name = out ? strdup(out) : NULL;
+		free(out);
 	}
 
 	if (parsed_options->width)
@@ -1134,15 +1202,19 @@ drm_backend_output_configure(struct wl_listener *listener, void *data)
 {
 	struct weston_output *output = data;
 	struct weston_config *wc = wet_get_config(output->compositor);
+	struct wet_output *wet_output = wet_output_create(output);
 	struct weston_config_section *section;
 	const struct weston_drm_output_api *api = weston_drm_output_get_api(output->compositor);
 	enum weston_drm_backend_output_mode mode =
 		WESTON_DRM_BACKEND_OUTPUT_PREFERRED;
 
 	char *s;
+	char *out;
 	char *modeline = NULL;
 	char *gbm_format = NULL;
 	char *seat = NULL;
+
+	assert(wet_output);
 
 	if (!api) {
 		weston_log("Cannot use weston_drm_output_api.\n");
@@ -1163,6 +1235,14 @@ drm_backend_output_configure(struct wl_listener *listener, void *data)
 		s = NULL;
 	}
 	free(s);
+
+	weston_config_section_get_string(section, "left-of", &out, NULL);
+	wet_output->right_output_name = out ? strdup(out) : NULL;
+	free(out);
+
+	weston_config_section_get_string(section, "right-of", &out, NULL);
+	wet_output->left_output_name = out ? strdup(out) : NULL;
+	free(out);
 
 	if (api->set_mode(output, mode, modeline) < 0) {
 		weston_log("Cannot configure an output using weston_drm_output_api.\n");
@@ -1829,6 +1909,7 @@ int main(int argc, char *argv[])
 		goto out_signals;
 	user_data.config = config;
 	user_data.parsed_options = NULL;
+	wl_list_init(&user_data.output_layout_list);
 
 	section = weston_config_get_section(config, "core", NULL, NULL);
 
