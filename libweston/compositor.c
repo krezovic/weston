@@ -67,10 +67,6 @@
 #define DEFAULT_REPAINT_WINDOW 7 /* milliseconds */
 
 static void
-weston_output_transform_scale_init(struct weston_output *output,
-				   uint32_t transform, uint32_t scale);
-
-static void
 weston_compositor_build_view_list(struct weston_compositor *compositor);
 
 static void weston_mode_switch_finish(struct weston_output *output,
@@ -86,7 +82,7 @@ static void weston_mode_switch_finish(struct weston_output *output,
 	pixman_region32_copy(&old_output_region, &output->region);
 
 	/* Update output region and transformation matrix */
-	weston_output_transform_scale_init(output, output->transform, output->current_scale);
+	weston_output_transform_scale_init(output);
 
 	pixman_region32_init(&output->previous_damage);
 	pixman_region32_init_rect(&output->region, output->x, output->y,
@@ -4212,17 +4208,25 @@ weston_output_update_matrix(struct weston_output *output)
 	weston_matrix_invert(&output->inverse_matrix, &output->matrix);
 }
 
-static void
-weston_output_transform_scale_init(struct weston_output *output, uint32_t transform, uint32_t scale)
+WL_EXPORT void
+weston_output_transform_scale_init(struct weston_output *output)
 {
-	output->transform = transform;
-	output->native_scale = scale;
-	output->current_scale = scale;
+	/* Make sure transform and scale are set */
+	assert(output->scale);
+	assert(output->transform != UINT32_MAX);
+
+	/* Make sure output->current_mode has been constructed. */
+	assert(output->current_mode);
+
+	/* TODO: Use output->original_scale in weston_output_set_scale() */
+	output->original_scale = output->scale;
+	output->native_scale = output->scale;
+	output->current_scale = output->scale;
 
 	convert_size_by_transform_scale(&output->width, &output->height,
 					output->current_mode->width,
 					output->current_mode->height,
-					transform, scale);
+					output->transform, output->scale);
 }
 
 static void
@@ -4448,6 +4452,8 @@ weston_output_init(struct weston_output *output,
 	output->scale = 0;
 	/* Can't use -1 on uint32_t and 0 is valid enum value */
 	output->transform = UINT32_MAX;
+
+	output->current_mode = NULL;
 }
 
 /** Adds weston_output object to pending output list.
@@ -4529,9 +4535,8 @@ weston_output_enable(struct weston_output *output)
 	output->x = x;
 	output->y = y;
 	output->dirty = 1;
-	output->original_scale = output->scale;
 
-	weston_output_transform_scale_init(output, output->transform, output->scale);
+	weston_output_transform_scale_init(output);
 	weston_output_init_zoom(output);
 
 	weston_output_init_geometry(output, x, y);

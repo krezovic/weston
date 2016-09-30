@@ -1596,6 +1596,8 @@ weston_output_activate_zoom(struct weston_output *output,
 void
 weston_output_update_matrix(struct weston_output *output);
 void
+weston_output_transform_scale_init(struct weston_output *output);
+void
 weston_output_move(struct weston_output *output, int x, int y);
 
 void
