@@ -480,20 +480,167 @@ wet_init_parsed_options(struct weston_compositor *ec)
 	return config;
 }
 
+static struct wet_output *
+wet_output_from_output(struct wet_compositor *compositor, struct weston_output *output)
+{
+	struct wet_output *iterator, *next;
+
+	if (wl_list_empty(&compositor->output_layout_list))
+		return NULL;
+
+	wl_list_for_each_safe(iterator, next, &compositor->output_layout_list, link) {
+		if (iterator->output == output)
+			return iterator;
+	}
+
+	return NULL;
+}
+
+static struct wet_output *
+wet_output_from_name(struct wet_compositor *compositor, const char *name)
+{
+	struct wet_output *iterator, *next;
+
+	if (wl_list_empty(&compositor->output_layout_list))
+		return NULL;
+
+	wl_list_for_each_safe(iterator, next, &compositor->output_layout_list, link) {
+		if (!strcmp(iterator->output->name, name))
+			return iterator;
+	}
+
+	return NULL;
+}
+
+static void
+wet_update_output_layout(struct wet_output *output)
+{
+	struct weston_compositor *ec = output->output->compositor;
+	struct weston_output *iterator, *next;
+	int x = output->output->x;
+	int y = output->output->y;
+
+	if (wl_list_empty(&ec->output_list))
+		return;
+
+	wl_list_for_each_safe(iterator, next, &ec->output_list, link) {
+		if (y == iterator->y && x <= iterator->x)
+			weston_output_move(iterator, iterator->x + output->output->width, y);
+	}
+}
+
+static void
+wet_output_apply_position(struct wet_output *output, int x, int y)
+{
+	weston_output_set_position(output->output, x, y);
+	wet_update_output_layout(output);
+	output->position_set = 1;
+}
+
+static void
+wet_set_output_position_from_config(struct wet_output *output,
+				    struct wet_compositor *compositor)
+{
+	struct wet_output *out;
+	int x, y;
+
+	if (output->right_output_name) {
+		out = wet_output_from_name(compositor, output->right_output_name);
+
+		if (out && (!out->left_output_name ||
+		    !strcmp(out->left_output_name, output->right_output_name))) {
+			x = out->output->x;
+			y = out->output->y;
+
+			if (!out->left_output_name)
+				out->left_output_name = strdup(output->output->name);
+
+			wet_output_apply_position(output, x, y);
+		}
+
+		/* Can't be right of and left of the same output */
+		if (output->left_output_name &&
+		    !strcmp(output->left_output_name, output->right_output_name)) {
+			free(output->left_output_name);
+			output->left_output_name = NULL;
+		}
+	}
+
+	if (output->left_output_name) {
+		out = wet_output_from_name(compositor, output->left_output_name);
+
+		if (out && (!out->right_output_name ||
+		    !strcmp(out->right_output_name, output->left_output_name))) {
+			x = out->output->x + out->output->width;
+			y = out->output->y;
+
+			if (!out->right_output_name)
+				out->right_output_name = strdup(output->output->name);
+
+			wet_output_apply_position(output, x, y);
+		}
+	}
+}
+
+static void
+wet_output_set_position_from_existing_output(struct wet_output *output,
+					     struct wet_compositor *compositor)
+{
+	struct wet_output *iterator, *next;
+	int x, y;
+
+	if (wl_list_empty(&compositor->output_layout_list))
+		return;
+
+	wl_list_for_each_safe(iterator, next, &compositor->output_layout_list, link) {
+		if (iterator->right_output_name &&
+		    !strcmp(iterator->right_output_name, output->output->name) &&
+		    !output->left_output_name) {
+			x = iterator->output->x + iterator->output->width;
+			y = iterator->output->y;
+
+			output->left_output_name = strdup(iterator->output->name);
+
+			wet_output_apply_position(output, x, y);
+		}
+
+		if (iterator->left_output_name &&
+		    !strcmp(iterator->left_output_name, output->output->name) &&
+		    !output->right_output_name) {
+			x = iterator->output->x;
+			y = iterator->output->y;
+
+			output->right_output_name = strdup(iterator->output->name);
+
+			wet_output_apply_position(output, x, y);
+		}
+	}
+}
+
 static void
 wet_set_output_position(struct weston_output *output)
 {
+	struct wet_compositor *c = to_wet_compositor(output->compositor);
+	struct wet_output *wet_output = wet_output_from_output(c, output);
 	struct weston_output *iterator;
 	int x = 0, y = 0;
 
-	iterator = container_of(output->compositor->output_list.prev,
-				struct weston_output, link);
-
-	if (!wl_list_empty(&output->compositor->output_list))
-		x = iterator->x + iterator->width;
-
 	weston_output_transform_scale_init(output);
-	weston_output_set_position(output, x, y);
+
+	if (wet_output) {
+		wet_set_output_position_from_config(wet_output, c);
+		wet_output_set_position_from_existing_output(wet_output, c);
+	}
+
+	if (wet_output && !wet_output->position_set) {
+		iterator = container_of(output->compositor->output_list.prev,
+					struct weston_output, link);
+
+		if (!wl_list_empty(&output->compositor->output_list))
+			x = iterator->x + iterator->width;
+
+		weston_output_set_position(output, x, y);
+	}
 }
 
 WL_EXPORT struct weston_config *
