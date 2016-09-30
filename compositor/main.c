@@ -468,6 +468,22 @@ wet_init_parsed_options(struct weston_compositor *ec)
 	return config;
 }
 
+static void
+wet_set_output_position(struct weston_output *output)
+{
+	struct weston_output *iterator;
+	int x = 0, y = 0;
+
+	iterator = container_of(output->compositor->output_list.prev,
+				struct weston_output, link);
+
+	if (!wl_list_empty(&output->compositor->output_list))
+		x = iterator->x + iterator->width;
+
+	weston_output_transform_scale_init(output);
+	weston_output_set_position(output, x, y);
+}
+
 WL_EXPORT struct weston_config *
 wet_get_config(struct weston_compositor *ec)
 {
@@ -1082,6 +1098,8 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 		return -1;
 	}
 
+	wet_set_output_position(output);
+
 	weston_output_enable(output);
 
 	return 0;
@@ -1166,6 +1184,8 @@ drm_backend_output_configure(struct wl_listener *listener, void *data)
 
 	api->set_seat(output, seat);
 	free(seat);
+
+	wet_set_output_position(output);
 
 	weston_output_enable(output);
 }
@@ -1314,6 +1334,8 @@ rdp_backend_output_configure(struct wl_listener *listener, void *data)
 		return;
 	}
 
+	wet_set_output_position(output);
+
 	weston_output_enable(output);
 }
 
@@ -1387,6 +1409,8 @@ fbdev_backend_output_configure(struct wl_listener *listener, void *data)
 
 	wet_output_set_transform(output, section, WL_OUTPUT_TRANSFORM_NORMAL, UINT32_MAX);
 	weston_output_set_scale(output, 1);
+
+	wet_set_output_position(output);
 
 	weston_output_enable(output);
 }
@@ -1537,6 +1561,8 @@ static void
 wayland_backend_output_configure_hotplug(struct wl_listener *listener, void *data)
 {
 	struct weston_output *output = data;
+
+	wet_set_output_position(output);
 
 	/* This backend has all values hardcoded, so nothing can be configured here */
 	weston_output_enable(output);

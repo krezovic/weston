@@ -4421,6 +4421,13 @@ weston_output_set_transform(struct weston_output *output,
 	output->transform = transform;
 }
 
+WL_EXPORT void
+weston_output_set_position(struct weston_output *output, int x, int y)
+{
+	output->x = x;
+	output->y = y;
+}
+
 /** Initializes a weston_output object with enough data so
  ** an output can be configured.
  *
@@ -4441,6 +4448,7 @@ weston_output_init(struct weston_output *output,
 	assert(output->name);
 
 	wl_list_init(&output->link);
+	wl_signal_init(&output->destroy_signal);
 
 	output->enabled = false;
 
@@ -4454,6 +4462,11 @@ weston_output_init(struct weston_output *output,
 	output->transform = UINT32_MAX;
 
 	output->current_mode = NULL;
+
+	output->width = 0;
+	output->height = 0;
+	output->x = -1;
+	output->y = -1;
 }
 
 /** Adds weston_output object to pending output list.
@@ -4476,11 +4489,8 @@ weston_compositor_add_pending_output(struct weston_output *output,
  *
  * \param output The weston_output object that needs to be enabled.
  *
- * Output coordinates are calculated and each new output is by default
- * assigned to the right of previous one.
- *
- * Sets up the transformation, zoom, and geometry of the output using
- * the properties that need to be configured by the compositor.
+ * Sets up the zoom and geometry of the output using the properties
+ * that need to be configured by the compositor.
  *
  * Establishes a repaint timer for the output with the relevant display
  * object's event loop. See output_repaint_timer_handler().
@@ -4508,17 +4518,9 @@ WL_EXPORT int
 weston_output_enable(struct weston_output *output)
 {
 	struct weston_compositor *c = output->compositor;
-	struct weston_output *iterator;
 	struct wl_event_loop *loop;
-	int x = 0, y = 0;
 
 	assert(output->enable);
-
-	iterator = container_of(c->output_list.prev,
-				struct weston_output, link);
-
-	if (!wl_list_empty(&c->output_list))
-		x = iterator->x + iterator->width;
 
 	/* Make sure the scale is set up */
 	assert(output->scale);
@@ -4526,24 +4528,26 @@ weston_output_enable(struct weston_output *output)
 	/* Make sure we have a transform set */
 	assert(output->transform != UINT32_MAX);
 
+	/* Make sure output size has been calculated. */
+	assert(output->width > 0 && output->height > 0);
+
+	/* Make sure position has been set. */
+	assert(output->x >= 0 && output->y >= 0);
+
 	/* Remove it from pending/disabled output list */
 	wl_list_remove(&output->link);
 
 	/* Verify we haven't reached the limit of 32 available output IDs */
 	assert(ffs(~c->output_id_pool) > 0);
 
-	output->x = x;
-	output->y = y;
 	output->dirty = 1;
 
-	weston_output_transform_scale_init(output);
 	weston_output_init_zoom(output);
 
-	weston_output_init_geometry(output, x, y);
+	weston_output_init_geometry(output, output->x, output->y);
 	weston_output_damage(output);
 
 	wl_signal_init(&output->frame_signal);
-	wl_signal_init(&output->destroy_signal);
 	wl_list_init(&output->animation_list);
 	wl_list_init(&output->resource_list);
 	wl_list_init(&output->feedback_list);
